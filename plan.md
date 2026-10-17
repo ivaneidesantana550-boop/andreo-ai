@@ -1,0 +1,48 @@
+# Plano — Andreo AI
+
+## Escopo
+
+Construir um chat AI chamado **Andreo**, otimizado primeiro para celular, com conversa em português, respostas em Markdown, chips de ferramentas de programação e web e um painel administrativo oculto em uma URL dedicada, protegido pela senha `251831`. O painel deve alterar nome, nome exibido, ícone, fundo, system prompt e instruções, persistindo os valores no banco e aplicando-os ao chat.
+
+## Implementação
+
+- **Frontend:** React + TypeScript + Tailwind, layout mobile-first com rail desktop opcional, área de conversa, composer fixo, cartões de ferramentas e painel admin.
+- **Backend:** Express com endpoints `/api/chat`, `/api/settings`, `/api/admin/login` e `/api/admin/settings`. O login admin gera um token HMAC de curta duração armazenado em `sessionStorage`; a senha fica somente no servidor.
+- **LLM:** reutilizar `invokeLLM` do starter, enviando system prompt + instruções persistidas + histórico recente.
+- **Persistência:** nova tabela singleton `appSettings` no Drizzle/MySQL com identidade e comportamento configuráveis.
+- **Rotas:** `/` para o chat e `/andreo-console` para o painel. `public/manus-routes.json` declara ambas.
+- **Recursos:** servidor e banco já habilitados; o chat usa a API LLM gerenciada do Manus sem chave externa.
+
+## Estrutura
+
+- `client/src/pages/Home.tsx`: experiência do chat.
+- `client/src/pages/Admin.tsx`: autenticação e edição de configuração.
+- `client/src/index.css`: tokens visuais, responsividade e superfícies.
+- `server/_core/index.ts`: endpoints HTTP e montagem do servidor.
+- `server/settings.ts`: leitura/escrita da configuração e autenticação admin.
+- `server/chat.ts`: composição do contexto e chamada LLM.
+- `drizzle/schema.ts`: tabela de configurações.
+- `public/manus-routes.json`: manifesto de páginas.
+
+## Design
+
+### Alternativas consideradas
+
+- **0,07 — Neon developer console:** alto contraste, brilho ciano e linguagem de IDE.
+- **0,06 — Editorial AI studio:** tipografia serifada e painéis de revista.
+- **0,08 — Quiet command center:** interface escura, precisa, com verde-lima como acento e blocos assimétricos.
+
+### Direção escolhida: Quiet command center
+
+- **Movimento:** dashboard técnico minimalista com referências de command centers e ferramentas de terminal, sem parecer uma IDE pesada.
+- **Princípios:** densidade controlada, hierarquia por contraste, foco total na conversa e estados muito claros.
+- **Filosofia de cor:** carvão azulado para reduzir fadiga, branco quente para leitura e verde-lima como sinal de ação/execução.
+- **Paradigma de layout:** coluna de conversa central emoldurada por uma rail de contexto à esquerda no desktop; no celular, a rail vira uma faixa horizontal rolável.
+- **Assinaturas:** marca “A” em bloco com corte diagonal, etiqueta `ONLINE / READY`, linhas de grid quase invisíveis.
+- **Interação:** ações rápidas devem inserir contexto no composer, não abrir fluxos complexos; feedback de envio aparece imediatamente.
+- **Animação:** entrada sutil de mensagens, pulso curto no estado online e transições de 150–220ms; nada decorativo competindo com o texto.
+- **Tipografia:** Inter para interface e JetBrains Mono para labels de ferramenta/código.
+- **Essência:** um cockpit de IA para transformar intenção em código e ação na web. Personalidade: preciso, útil, confiante.
+- **Voz:** direta e orientada à ação. Exemplos: “O que vamos construir hoje?” e “Entendi o objetivo. Vou separar em passos executáveis.”
+- **Wordmark:** “Andreo” com o `A` quadrado e recortado, acompanhado do status `AI / WORKSPACE`.
+- **Cor proprietária:** verde-lima elétrico `#B7F34A`.

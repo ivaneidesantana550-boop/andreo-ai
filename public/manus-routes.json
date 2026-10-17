@@ -1,0 +1,6 @@
+{
+  "routes": [
+    { "path": "/", "title": "Andreo AI" },
+    { "path": "/andreo-console", "title": "Andreo Console" }
+  ]
+}
