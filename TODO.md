@@ -20,6 +20,7 @@
 - [x] Permitir alterar o fundo e o ícone do chat.
 - [x] Persistir as configurações administrativas entre sessões e atualizações.
 - [x] Aplicar automaticamente as alterações na experiência do chat.
+- [x] Permitir alterar pelo painel a mensagem inicial, o texto “seu cockpit”, a etiqueta superior, a descrição, o placeholder, rótulos e sugestões rápidas do chat.
 
 ## Assets visuais por upload
 

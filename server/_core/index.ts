@@ -49,6 +49,20 @@ function publicSettings(settings: Awaited<ReturnType<typeof getAppSettings>>) {
     iconImageUrl: settings.iconImageUrl,
     background: settings.background,
     backgroundImageUrl: settings.backgroundImageUrl,
+    brandSubtitle: settings.brandSubtitle,
+    welcomeEyebrow: settings.welcomeEyebrow,
+    welcomeMessage: settings.welcomeMessage,
+    welcomeDescription: settings.welcomeDescription,
+    inputPlaceholder: settings.inputPlaceholder,
+    toolsSectionLabel: settings.toolsSectionLabel,
+    newSessionLabel: settings.newSessionLabel,
+    onlineLabel: settings.onlineLabel,
+    assistantLabel: settings.assistantLabel,
+    userLabel: settings.userLabel,
+    processingLabel: settings.processingLabel,
+    quickPrompt1: settings.quickPrompt1,
+    quickPrompt2: settings.quickPrompt2,
+    quickPrompt3: settings.quickPrompt3,
   };
 }
 
@@ -185,7 +199,7 @@ async function startServer() {
     if (!requireAdmin(req, res)) return;
     try {
       const body = req.body ?? {};
-      const allowed = ["chatName", "displayName", "icon", "iconImageUrl", "background", "backgroundImageUrl", "systemPrompt", "instructions"] as const;
+      const allowed = ["chatName", "displayName", "icon", "iconImageUrl", "background", "backgroundImageUrl", "brandSubtitle", "welcomeEyebrow", "welcomeMessage", "welcomeDescription", "inputPlaceholder", "toolsSectionLabel", "newSessionLabel", "onlineLabel", "assistantLabel", "userLabel", "processingLabel", "quickPrompt1", "quickPrompt2", "quickPrompt3", "systemPrompt", "instructions"] as const;
       const patch = Object.fromEntries(allowed.filter(key => typeof body[key] === "string").map(key => [key, body[key]]));
       res.json(await updateAppSettings(patch));
     } catch (error) {
