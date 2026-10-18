@@ -18,17 +18,18 @@ while (true) {
   try {
     const response = await fetch(`${base}/api/terminal/agent/next?agentToken=${encodeURIComponent(agentToken)}`);
     const data = await response.json();
-    if (!data.command || busy) { await new Promise(r => setTimeout(r, 1000)); continue; }
+    if (!data.command || busy) { await new Promise(r => setTimeout(r, 250)); continue; }
     busy = true;
     console.log(`\\nExecutando comando autorizado pelo usuário: ${data.command.command}`);
     try {
       const child = spawn(data.command.command, { shell: true, stdio: ["ignore", "pipe", "pipe"] });
-      const sendLog = chunk => { const text = String(chunk); process.stdout.write(text); void fetch(`${base}/api/terminal/agent/log`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ agentToken, commandId: data.command.id, chunk: text }) }); };
+      let output = "";
+      const sendLog = chunk => { const text = String(chunk); output = `${output}${text}`.slice(-100000); process.stdout.write(text); void fetch(`${base}/api/terminal/agent/log`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ agentToken, commandId: data.command.id, chunk: text }) }); };
       child.stdout.on("data", sendLog); child.stderr.on("data", sendLog);
       const timer = setTimeout(() => child.kill("SIGTERM"), 120000);
       const exitCode = await new Promise(resolve => child.on("close", resolve));
       clearTimeout(timer);
-      await fetch(`${base}/api/terminal/agent/result`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ agentToken, commandId: data.command.id, status: exitCode === 0 ? "done" : "error", error: exitCode === 0 ? "" : `Processo finalizado com código ${exitCode}` }) });
+      await fetch(`${base}/api/terminal/agent/result`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ agentToken, commandId: data.command.id, status: exitCode === 0 ? "done" : "error", output, error: exitCode === 0 ? "" : `Processo finalizado com código ${exitCode}` }) });
     } catch (error) {
       await fetch(`${base}/api/terminal/agent/result`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ agentToken, commandId: data.command.id, status: "error", error: error instanceof Error ? error.message : String(error) }) });
       console.error(error);

@@ -167,7 +167,7 @@ export default function HomeWorkspace() {
       const statusData = await statusResponse.json();
       const currentCommand = statusData.commands?.find((item: { id: string }) => item.id === data.command.id);
       if (!currentCommand) return;
-      setMessages(current => current.map(item => item.id === message.id ? { ...item, terminalStatus: currentCommand.status, terminalOutput: currentCommand.output || currentCommand.error || "" } : item));
+      setMessages(current => current.map(item => item.id === message.id ? { ...item, terminalStatus: currentCommand.status, terminalOutput: currentCommand.output || currentCommand.error || (currentCommand.status === "done" ? "Comando concluído sem saída." : "") } : item));
       if (["done", "error", "cancelled"].includes(currentCommand.status)) window.clearInterval(timer);
     }, 1000);
   };
