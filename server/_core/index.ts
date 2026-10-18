@@ -1,5 +1,6 @@
 import "dotenv/config";
 import crypto from "node:crypto";
+import path from "node:path";
 import express from "express";
 import { createServer } from "http";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
@@ -176,6 +177,12 @@ async function startServer() {
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
+  app.get("/andreo-terminal-agent.mjs", (_req, res) => {
+    const agentPath = process.env.NODE_ENV === "development"
+      ? path.resolve(import.meta.dirname, "../../public/andreo-terminal-agent.mjs")
+      : path.resolve(import.meta.dirname, "public/andreo-terminal-agent.mjs");
+    res.type("application/javascript").sendFile(agentPath);
+  });
   app.post("/api/terminal/pair/start", (req, res) => {
     const browserToken = token();
     const joinToken = token();
