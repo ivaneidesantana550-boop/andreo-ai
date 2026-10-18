@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 type PublicSettings = { chatName: string; displayName: string; icon: string; iconImageUrl: string; background: string; backgroundImageUrl: string; brandSubtitle: string; welcomeEyebrow: string; welcomeMessage: string; welcomeDescription: string; inputPlaceholder: string; toolsSectionLabel: string; newSessionLabel: string; onlineLabel: string; assistantLabel: string; userLabel: string; processingLabel: string; quickPrompt1: string; quickPrompt2: string; quickPrompt3: string };
 type ChatAttachment = { key: string; url: string; name: string; mimeType: string; size: number; textContent?: string };
-type Message = { id: string; role: "user" | "assistant"; content: string; attachments?: ChatAttachment[]; imageUrl?: string; fileUrl?: string; fileName?: string; previewUrl?: string };
+type Message = { id: string; role: "user" | "assistant"; content: string; attachments?: ChatAttachment[]; imageUrl?: string; fileUrl?: string; fileName?: string; previewUrl?: string; buildId?: number; buildStatus?: string };
 type Tool = { label: string; caption: string; icon: typeof Code2; prompt: string; tone: string };
 type WorkspaceTab = "files" | "preview" | "build" | "publish";
 type ProjectFile = { path: string; kind: string; content: string };
@@ -66,6 +66,31 @@ export default function HomeWorkspace() {
     } finally { setUploadingFiles(false); }
   };
 
+  const trackBuild = (messageId: string, runId: number, kind: "apk" | "exe") => {
+    let attempts = 0;
+    const check = async () => {
+      attempts += 1;
+      try {
+        const response = await fetch(`/api/chat/build-status/${runId}`);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "status");
+        if (data.status === "completed" && data.conclusion === "success") {
+          setMessages(current => current.map(message => message.id === messageId ? { ...message, content: `Build **${kind.toUpperCase()} concluído**. O artefato real está pronto para baixar.`, fileUrl: data.downloadUrl, fileName: data.fileName || `andreo-${kind}-build.zip`, buildStatus: "success" } : message));
+          return;
+        }
+        if (data.status === "completed") {
+          setMessages(current => current.map(message => message.id === messageId ? { ...message, content: `O build ${kind.toUpperCase()} terminou com status **${data.conclusion || "falha"}**. Abra os logs para ver o motivo.`, buildStatus: data.conclusion || "failure" } : message));
+          return;
+        }
+        setMessages(current => current.map(message => message.id === messageId ? { ...message, buildStatus: data.status } : message));
+        if (attempts < 90) window.setTimeout(() => void check(), 8000);
+      } catch {
+        if (attempts < 5) window.setTimeout(() => void check(), 8000);
+      }
+    };
+    void check();
+  };
+
   const submit = async (value?: string) => {
     const content = (value ?? draft).trim();
     if ((!content && !attachedFiles.length) || sending) return;
@@ -83,10 +108,13 @@ export default function HomeWorkspace() {
       }
       const artifactKind = /(apk|android)/i.test(content) ? "apk" : /(exe|windows|desktop)/i.test(content) ? "exe" : "";
       if (artifactKind && /(crie|criar|construa|faça|faca|desenvolva|monte|gere|gerar)/i.test(content)) {
-        const artifactResponse = await fetch("/api/chat/create-artifact", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: artifactKind, brief: content }) });
+        const artifactResponse = await fetch("/api/chat/create-artifact", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: artifactKind, brief: content, origin: window.location.origin }) });
         const artifactData = await artifactResponse.json();
         if (!artifactResponse.ok) throw new Error(artifactData.error || "Não foi possível gerar o pacote.");
-        setMessages(current => [...current, { id: uid(), role: "assistant", content: `Pacote de projeto **${artifactData.name}** criado e pronto para baixar.\n\n${artifactData.description}\n\nO ZIP contém os arquivos completos do projeto e o manifesto de build.`, fileUrl: artifactData.zipUrl, fileName: artifactData.zipName }]);
+        const messageId = uid();
+        const build = artifactData.build;
+        setMessages(current => [...current, { id: messageId, role: "assistant", content: build?.id ? `Projeto **${artifactData.name}** criado. Build ${artifactKind.toUpperCase()} iniciado automaticamente; vou entregar o artefato quando terminar.\n\n${artifactData.description}` : `Projeto **${artifactData.name}** criado e ZIP pronto para baixar.\n\n${artifactData.description}`, fileUrl: artifactData.zipUrl, fileName: artifactData.zipName, buildId: build?.id || undefined, buildStatus: build?.status }]);
+        if (build?.id) trackBuild(messageId, build.id, artifactKind);
         return;
       }
       const response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: nextMessages.map(({ role, content: text, attachments }) => ({ role, content: text, attachments })) }) });

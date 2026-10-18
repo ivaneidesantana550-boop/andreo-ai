@@ -31,8 +31,18 @@ jobs:
           java-version: "17"
           cache: gradle
 
-      - name: Configurar Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Preparar Android SDK
+        shell: bash
+        run: |
+          SDKMANAGER="$(command -v sdkmanager || true)"
+          if [ -z "$SDKMANAGER" ] && [ -n "$ANDROID_HOME" ]; then SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"; fi
+          if [ -n "$SDKMANAGER" ] && [ -x "$SDKMANAGER" ]; then
+            yes | "$SDKMANAGER" --licenses >/dev/null || true
+            "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          else
+            echo "Android SDK não encontrado no runner."
+            exit 1
+          fi
 
       - name: Compilar APK debug
         working-directory: project/source

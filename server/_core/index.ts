@@ -28,6 +28,33 @@ type ChatMessageInput = { role: "user" | "assistant"; content: string; attachmen
 const MAX_RESPONSE_CHARS = 1_000_000;
 const MAX_COMPLETION_TOKENS_PER_PART = 16_000;
 const MAX_CONTINUATION_PARTS = 64;
+const ARTIFACT_RESPONSE_FORMAT = {
+  type: "json_schema" as const,
+  json_schema: {
+    name: "andreo_artifact_project",
+    strict: true,
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["name", "description", "files"],
+      properties: {
+        name: { type: "string" },
+        description: { type: "string" },
+        files: {
+          type: "array",
+          minItems: 1,
+          maxItems: 80,
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["path", "content"],
+            properties: { path: { type: "string" }, content: { type: "string" } },
+          },
+        },
+      },
+    },
+  },
+};
 
 function adminTokenFromRequest(req: express.Request) {
   const header = req.header("authorization") || "";
@@ -83,6 +110,55 @@ function safeFileName(value: string, fallback: string) {
   return name || fallback;
 }
 
+function safeRelativePath(value: string, fallback: string) {
+  const parts = value.split(/[\\/]+/).filter(part => part && part !== "." && part !== "..");
+  const path = parts.map(part => safeFileName(part, "arquivo")).join("/");
+  return path || fallback;
+}
+
+const GITHUB_REPOSITORY = "ivaneidesantana550-boop/andreo-ai";
+
+async function githubRequest(path: string, init: RequestInit = {}) {
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) throw new Error("O runner do GitHub ainda não está configurado.");
+  const response = await fetch(`https://api.github.com${path}`, {
+    ...init,
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
+      "X-GitHub-Api-Version": "2022-11-28",
+      "Content-Type": "application/json",
+      ...(init.headers || {}),
+    },
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`GitHub Actions respondeu ${response.status}: ${detail.slice(0, 240)}`);
+  }
+  return response;
+}
+
+async function findWorkflowRun(workflow: string, startedAt: number) {
+  const response = await githubRequest(`/repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow}/runs?event=workflow_dispatch&per_page=10`);
+  const data = await response.json() as { workflow_runs?: Array<{ id: number; created_at: string; html_url: string; status: string; conclusion: string | null }> };
+  return data.workflow_runs?.find(run => new Date(run.created_at).getTime() >= startedAt - 30_000) || null;
+}
+
+async function dispatchBuild(kind: "apk" | "exe", projectUrl: string, artifactName: string) {
+  const workflow = kind === "apk" ? "build-android.yml" : "build-windows.yml";
+  const startedAt = Date.now();
+  await githubRequest(`/repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow}/dispatches`, {
+    method: "POST",
+    body: JSON.stringify({ ref: "main", inputs: { project_url: projectUrl, artifact_name: artifactName } }),
+  });
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    const run = await findWorkflowRun(workflow, startedAt);
+    if (run) return { id: run.id, status: run.status, conclusion: run.conclusion, html_url: run.html_url, workflow };
+  }
+  return { id: null, status: "queued", conclusion: null, html_url: `https://github.com/${GITHUB_REPOSITORY}/actions/workflows/${workflow}`, workflow };
+}
+
 function mimeForFile(name: string) {
   const extension = name.split(".").pop()?.toLowerCase();
   const map: Record<string, string> = {
@@ -109,19 +185,26 @@ async function generateSiteDefinition(brief: string, settings: Awaited<ReturnTyp
       { role: "user", content: prompt },
     ],
     maxTokens: 16_000,
+    model: "gpt-5",
+    responseFormat: ARTIFACT_RESPONSE_FORMAT,
   });
   return parseJsonObject(contentToText(result.choices?.[0]?.message?.content));
 }
 
 async function generateArtifactDefinition(brief: string, kind: "apk" | "exe", settings: Awaited<ReturnType<typeof getAppSettings>>) {
   const target = kind === "apk" ? "Android APK" : "Windows EXE";
-  const prompt = `Crie um projeto completo para gerar um ${target} a partir deste pedido: ${brief}\n\nResponda SOMENTE com JSON válido neste formato: {"name":"nome curto","description":"descrição","files":[{"path":"README.md","content":"..."},{"path":"andreo.project.json","content":"..."},{"path":"src/main.txt","content":"..."}]}. Inclua arquivos reais de configuração, código inicial funcional e instruções de build. Não entregue apenas uma explicação.`;
+  const targetRules = kind === "apk"
+    ? "Gere um projeto Android Gradle compilável sem intervenção: inclua gradlew executável, gradlew.bat, settings.gradle, build.gradle, gradle.properties, app/build.gradle, AndroidManifest.xml, uma Activity Java/Kotlin e os recursos necessários. Use um projeto pequeno compatível com Android SDK atual e assembleDebug."
+    : "Gere um projeto Electron compilável no Windows: inclua package.json com script build:win e configuração electron-builder, main.js e uma interface renderer.html ou equivalente. O script deve produzir um EXE em dist. Inclua todas as dependências no package.json e não dependa de arquivos fora do ZIP.";
+  const prompt = `Crie um projeto completo para gerar um ${target} a partir deste pedido: ${brief}\n\n${targetRules}\n\nResponda SOMENTE com JSON válido neste formato: {"name":"nome curto","description":"descrição","files":[{"path":"README.md","content":"..."},{"path":"arquivo/com/caminho.ext","content":"..."}]}. Inclua arquivos reais, completos e executáveis. Preserve barras nos caminhos. Não entregue apenas uma explicação.`;
   const result = await invokeLLM({
     messages: [
       { role: "system", content: `${settings.systemPrompt}\n${settings.instructions}\nVocê é o gerador de projetos compiláveis do Andreo. Gere arquivos reais e completos.` },
       { role: "user", content: prompt },
     ],
     maxTokens: 16_000,
+    model: "gpt-5",
+    responseFormat: ARTIFACT_RESPONSE_FORMAT,
   });
   return parseJsonObject(contentToText(result.choices?.[0]?.message?.content));
 }
@@ -318,7 +401,7 @@ async function startServer() {
       const settings = await getAppSettings();
       const definition = await generateSiteDefinition(brief, settings);
       const files = (definition.files || [])
-        .map(file => ({ path: safeFileName(String(file.path || "arquivo.txt").replace(/^\/+/, ""), "arquivo.txt"), content: String(file.content || "") }))
+        .map(file => ({ path: safeRelativePath(String(file.path || "arquivo.txt").replace(/^\/+/, ""), "arquivo.txt"), content: String(file.content || "") }))
         .filter(file => file.content.trim())
         .slice(0, 40);
       if (!files.some(file => file.path.toLowerCase() === "index.html")) {
@@ -350,7 +433,7 @@ async function startServer() {
       const settings = await getAppSettings();
       const definition = await generateArtifactDefinition(brief, kind, settings);
       const files = (definition.files || [])
-        .map(file => ({ path: safeFileName(String(file.path || "arquivo.txt").replace(/^\/+/, ""), "arquivo.txt"), content: String(file.content || "") }))
+        .map(file => ({ path: safeRelativePath(String(file.path || "arquivo.txt").replace(/^\/+/, ""), "arquivo.txt"), content: String(file.content || "") }))
         .filter(file => file.content.trim())
         .slice(0, 60);
       if (!files.length) {
@@ -360,11 +443,67 @@ async function startServer() {
       const manifest = JSON.stringify({ name: definition.name || `andreo-${kind}-project`, target: kind === "apk" ? "android" : "windows", generatedBy: "andreo", brief, files: files.map(file => file.path) }, null, 2);
       const zipEntries = Object.fromEntries([...files, { path: "andreo.project.json", content: manifest }].map(file => [file.path, strToU8(file.content)]));
       const slug = safeFileName(String(definition.name || `andreo-${kind}-project`), `andreo-${kind}-project`).toLowerCase();
-      const zip = await storagePut(`artifacts/${Date.now()}-${slug}.zip`, Buffer.from(zipSync(zipEntries, { level: 6 })), "application/zip");
-      res.json({ name: definition.name || slug, description: definition.description || `Projeto ${kind.toUpperCase()} pronto para compilação.`, zipUrl: zip.url, zipName: `${slug}-${kind}-project.zip`, kind });
+      const stamp = Date.now();
+      const zip = await storagePut(`artifacts/${stamp}-${slug}.zip`, Buffer.from(zipSync(zipEntries, { level: 6 })), "application/zip");
+      const origin = typeof req.body?.origin === "string" && /^https?:\/\//i.test(req.body.origin) ? req.body.origin.replace(/\/$/, "") : "";
+      const projectUrl = origin ? new URL(zip.url, origin).toString() : "";
+      let build: { id: number | null; status: string; conclusion: string | null; html_url: string; workflow: string } | null = null;
+      if (projectUrl) {
+        build = await dispatchBuild(kind, projectUrl, `${slug}-${kind}`);
+      }
+      res.json({ name: definition.name || slug, description: definition.description || `Projeto ${kind.toUpperCase()} pronto para compilação.`, zipUrl: zip.url, zipName: `${slug}-${kind}-project.zip`, kind, build });
     } catch (error) {
       console.error("[Chat] artifact creation failed", error);
       res.status(500).json({ error: "Não consegui gerar o pacote do aplicativo agora. Tente novamente." });
+    }
+  });
+
+  app.get("/api/chat/build-status/:runId", async (req, res) => {
+    try {
+      const runId = Number(req.params.runId);
+      if (!Number.isSafeInteger(runId) || runId <= 0) {
+        res.status(400).json({ error: "Execução inválida." });
+        return;
+      }
+      const runResponse = await githubRequest(`/repos/${GITHUB_REPOSITORY}/actions/runs/${runId}`);
+      const run = await runResponse.json() as { id: number; status: string; conclusion: string | null; html_url: string; name?: string };
+      const result: { runId: number; status: string; conclusion: string | null; runUrl: string; downloadUrl?: string; fileName?: string } = { runId: run.id, status: run.status, conclusion: run.conclusion, runUrl: run.html_url };
+      if (run.status === "completed" && run.conclusion === "success") {
+        const artifactsResponse = await githubRequest(`/repos/${GITHUB_REPOSITORY}/actions/runs/${runId}/artifacts`);
+        const artifacts = await artifactsResponse.json() as { artifacts?: Array<{ id: number; name: string; expired: boolean }> };
+        const artifact = artifacts.artifacts?.find(item => !item.expired);
+        if (artifact) {
+          result.downloadUrl = `/api/chat/build-artifact/${artifact.id}`;
+          result.fileName = artifact.name;
+        }
+      }
+      res.json(result);
+    } catch (error) {
+      console.error("[Chat] build status failed", error);
+      res.status(502).json({ error: "Não consegui consultar o andamento do build." });
+    }
+  });
+
+  app.get("/api/chat/build-artifact/:artifactId", async (req, res) => {
+    try {
+      const artifactId = Number(req.params.artifactId);
+      if (!Number.isSafeInteger(artifactId) || artifactId <= 0) {
+        res.status(400).json({ error: "Artefato inválido." });
+        return;
+      }
+      const response = await githubRequest(`/repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifactId}/zip`, { redirect: "manual" });
+      const location = response.headers.get("location");
+      if (location) {
+        res.redirect(location);
+        return;
+      }
+      const buffer = Buffer.from(await response.arrayBuffer());
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader("Content-Disposition", `attachment; filename="andreo-build-${artifactId}.zip"`);
+      res.send(buffer);
+    } catch (error) {
+      console.error("[Chat] artifact download failed", error);
+      res.status(502).json({ error: "Não consegui preparar o download do build." });
     }
   });
 
