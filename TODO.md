@@ -29,10 +29,10 @@
 
 ## Build Lab e entregas
 
-- [x] Criar um ambiente de projeto integrado ao chat, sem exigir uma página separada.
-- [x] Abrir automaticamente o ambiente quando a pessoa pedir para criar um site, app, sistema, APK, EXE ou projeto.
-- [x] Mostrar dentro do chat as abas de arquivos, preview, build e entrega, com briefing e arquivos iniciais do projeto.
-- [x] Permitir registrar arquivos iniciais e iniciar o build a partir do ambiente integrado.
+- [x] Manter o ambiente de projeto integrado e invisível por trás do chat, sem uma aba ou página de ambiente exposta.
+- [x] Executar pedidos de site, app, sistema, APK, EXE ou projeto a partir da conversa, sem abrir um painel automático.
+- [x] Entregar no próprio chat as respostas, imagens, arquivos e links de download produzidos pela execução.
+- [x] Manter a estrutura interna de arquivos/build para uso do executor sem interromper a conversa.
 - [ ] Conectar runners nativos de compilação para produzir binários APK/EXE e publicar sites automaticamente em produção.
 
 ## Chat multimodal e entregáveis

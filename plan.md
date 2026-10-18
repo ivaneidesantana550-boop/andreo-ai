@@ -2,7 +2,7 @@
 
 ## Escopo
 
-Construir um chat AI chamado **Andreo**, otimizado primeiro para celular, com conversa em português, respostas em Markdown, chips de ferramentas de programação e web e um ambiente de projeto integrado ao próprio chat para organizar arquivos, preview, build e entrega de sites/APK/EXE/ZIP. O painel administrativo fica em uma URL dedicada, protegido pela senha `251831`, e altera nome, nome exibido, imagem do ícone, imagem do fundo, system prompt e instruções.
+Construir um chat AI chamado **Andreo**, otimizado primeiro para celular, com conversa em português, respostas em Markdown, chips de ferramentas de programação e web e um ambiente de execução invisível por trás do chat para criar arquivos, sites/APK/EXE/ZIP e entregar resultados sem abrir uma aba de ambiente. O painel administrativo fica em uma URL dedicada, protegido pela senha `251831`, e altera nome, nome exibido, imagem do ícone, imagem do fundo, system prompt e instruções.
 
 ## Implementação
 
@@ -10,7 +10,7 @@ Construir um chat AI chamado **Andreo**, otimizado primeiro para celular, com co
 - **Backend:** Express com endpoints `/api/chat`, `/api/settings`, `/api/admin/login`, `/api/admin/settings` e `/api/admin/upload-asset`. O login admin gera um token HMAC de curta duração armazenado em `sessionStorage`; a senha fica somente no servidor.
 - **LLM:** reutilizar `invokeLLM` do starter, enviando system prompt + instruções persistidas + histórico recente.
 - **Persistência:** nova tabela singleton `appSettings` no Drizzle/MySQL com identidade, comportamento e URLs de assets configuráveis; imagens são enviadas para o storage durável.
-- **Rotas:** `/` para o chat e `/andreo-console` para o painel. O ambiente de projeto aparece como dock integrado dentro de `/`.
+- **Rotas:** `/` para o chat e `/andreo-console` para o painel. O executor de projetos permanece interno ao fluxo de conversa e não é exposto como página ou aba.
 - **Recursos:** servidor e banco já habilitados; o chat usa a API LLM gerenciada do Manus sem chave externa.
 
 ## Estrutura
