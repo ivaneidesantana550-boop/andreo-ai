@@ -78,6 +78,15 @@ export default function HomeWorkspace() {
     void loadConversationList().then(list => { if (list?.[0]) void openConversation(list[0].id); });
   }, []);
   useEffect(() => { const onStatus = (event: Event) => { const detail = (event as CustomEvent<{ connected?: boolean; token?: string }>).detail; if (detail.connected && detail.token) { setTerminalToken(detail.token); setTerminalConnected(true); } }; window.addEventListener("andreo-terminal-status", onStatus); return () => window.removeEventListener("andreo-terminal-status", onStatus); }, []);
+  useEffect(() => {
+    if (!terminalToken) return;
+    const checkTerminal = async () => {
+      const response = await fetch(`/api/terminal/pair/status?token=${terminalToken}`);
+      if (!response.ok) { localStorage.removeItem("andreo-terminal-browser-token"); setTerminalToken(""); setTerminalConnected(false); return; }
+      const data = await response.json(); setTerminalConnected(data.status === "connected");
+    };
+    void checkTerminal(); const timer = window.setInterval(() => void checkTerminal(), 2000); return () => window.clearInterval(timer);
+  }, [terminalToken]);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [messages, sending]);
 
   const handleFiles = async (files: FileList | null) => {

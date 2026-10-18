@@ -12,7 +12,21 @@ export default function TerminalConnector({ onClose }: Props) {
   const [command, setCommand] = useState("");
   const [commands, setCommands] = useState<Command[]>([]);
   const [copied, setCopied] = useState(false);
-  useEffect(() => { fetch("/api/terminal/pair/start", { method: "POST" }).then(r => r.json()).then(data => { setBrowserToken(data.browserToken); localStorage.setItem("andreo-terminal-browser-token", data.browserToken); setCode(data.code); setAgentCommand(data.agentCommand); setWindowsCommand(data.windowsCommand || ""); setStatus("waiting"); }); }, []);
+  useEffect(() => {
+    const existing = localStorage.getItem("andreo-terminal-browser-token");
+    const restore = async () => {
+      if (existing) {
+        const response = await fetch(`/api/terminal/pair/status?token=${existing}`);
+        if (response.ok) {
+          const data = await response.json(); setBrowserToken(existing); setStatus(data.status); if (data.status === "connected") window.dispatchEvent(new CustomEvent("andreo-terminal-status", { detail: { connected: true, token: existing } }));
+          setAgentCommand(localStorage.getItem("andreo-terminal-command") || ""); setWindowsCommand(localStorage.getItem("andreo-terminal-windows-command") || ""); return;
+        }
+        localStorage.removeItem("andreo-terminal-browser-token");
+      }
+      const response = await fetch("/api/terminal/pair/start", { method: "POST" }); const data = await response.json(); setBrowserToken(data.browserToken); localStorage.setItem("andreo-terminal-browser-token", data.browserToken); localStorage.setItem("andreo-terminal-command", data.agentCommand); localStorage.setItem("andreo-terminal-windows-command", data.windowsCommand || ""); setCode(data.code); setAgentCommand(data.agentCommand); setWindowsCommand(data.windowsCommand || ""); setStatus("waiting");
+    };
+    void restore();
+  }, []);
   useEffect(() => { if (!browserToken || status === "connected") return; const timer = window.setInterval(() => fetch(`/api/terminal/pair/status?token=${browserToken}`).then(r => r.ok ? r.json() : null).then(data => { if (data?.status === "connected") { setStatus("connected"); window.dispatchEvent(new CustomEvent("andreo-terminal-status", { detail: { connected: true, token: browserToken } })); } }), 1500); return () => window.clearInterval(timer); }, [browserToken, status]);
   useEffect(() => { if (!browserToken || status !== "connected") return; const timer = window.setInterval(() => fetch(`/api/terminal/commands?token=${browserToken}`).then(r => r.json()).then(data => setCommands(data.commands || [])), 1000); return () => window.clearInterval(timer); }, [browserToken, status]);
   const copy = async (text: string) => { await navigator.clipboard?.writeText(text); setCopied(true); window.setTimeout(() => setCopied(false), 1500); };
