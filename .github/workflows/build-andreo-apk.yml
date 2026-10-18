@@ -20,8 +20,11 @@ jobs:
           java-version: '17'
       - name: Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          accept-android-sdk-licenses: true
+          log-accepted-android-sdk-licenses: false
       - name: Install Android platform
-        run: sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+        run: yes | sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
       - name: Build debug APK
         uses: gradle/gradle-build-action@v3
         with:
