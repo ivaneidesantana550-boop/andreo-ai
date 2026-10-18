@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { conversationMessages, conversations, InsertUser, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -52,4 +52,50 @@ export async function getUserByOpenId(openId: string) {
   if (!db) return undefined;
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
   return result.length > 0 ? result[0] : undefined;
+}
+
+export async function listConversations(visitorId: string) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({ id: conversations.id, title: conversations.title, createdAt: conversations.createdAt, updatedAt: conversations.updatedAt })
+    .from(conversations)
+    .where(eq(conversations.visitorId, visitorId))
+    .orderBy(desc(conversations.updatedAt))
+    .limit(50);
+}
+
+export async function getConversationMessages(visitorId: string, conversationId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const conversation = await db.select({ id: conversations.id, title: conversations.title })
+    .from(conversations)
+    .where(and(eq(conversations.id, conversationId), eq(conversations.visitorId, visitorId)))
+    .limit(1);
+  if (!conversation[0]) return null;
+  const messages = await db.select({ id: conversationMessages.id, role: conversationMessages.role, content: conversationMessages.content, metadata: conversationMessages.metadata, createdAt: conversationMessages.createdAt })
+    .from(conversationMessages)
+    .where(eq(conversationMessages.conversationId, conversationId))
+    .orderBy(conversationMessages.createdAt, conversationMessages.id);
+  return { conversation: conversation[0], messages };
+}
+
+export async function saveConversationTurn(visitorId: string, conversationId: number | undefined, userContent: string, assistantContent: string, metadata?: string) {
+  const db = await getDb();
+  if (!db) return null;
+  let id = conversationId;
+  if (id) {
+    const owned = await db.select({ id: conversations.id }).from(conversations).where(and(eq(conversations.id, id), eq(conversations.visitorId, visitorId))).limit(1);
+    if (!owned[0]) id = undefined;
+  }
+  if (!id) {
+    const title = userContent.replace(/\s+/g, " ").trim().slice(0, 180) || "Nova conversa";
+    const created = await db.insert(conversations).values({ visitorId, title }).$returningId();
+    id = created[0]?.id;
+  }
+  if (!id) return null;
+  await db.insert(conversationMessages).values([
+    { conversationId: id, role: "user", content: userContent },
+    { conversationId: id, role: "assistant", content: assistantContent, metadata: metadata ?? null },
+  ]);
+  return id;
 }

@@ -17,6 +17,7 @@ import {
 } from "../settings";
 import { storageGetSignedUrl, storagePut } from "../storage";
 import { generateImage } from "./imageGeneration";
+import { getConversationMessages, listConversations, saveConversationTurn } from "../db";
 
 const CAPABILITY_CONTEXT = `
 Capacidades disponíveis no workspace: geração de código, revisão e refatoração, debugging, explicação de APIs, criação de componentes, pesquisa na web, abertura e leitura de URLs, síntese de páginas, comparação de fontes e planejamento técnico. Seja honesto quando uma ação externa não estiver disponível diretamente e ofereça o próximo passo mais útil.
@@ -86,6 +87,11 @@ function cleanAssistantText(value: string) {
 function safeFileName(value: string, fallback: string) {
   const name = value.trim().replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 100);
   return name || fallback;
+}
+
+function visitorIdFromRequest(req: express.Request) {
+  const value = typeof req.body?.visitorId === "string" ? req.body.visitorId : typeof req.query.visitorId === "string" ? req.query.visitorId : "";
+  return value.trim().replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 128);
 }
 
 function mimeForFile(name: string) {
@@ -300,6 +306,31 @@ async function startServer() {
     }
   });
 
+  app.get("/api/conversations", async (req, res) => {
+    try {
+      const visitorId = visitorIdFromRequest(req);
+      if (!visitorId) { res.status(400).json({ error: "Identificador do navegador ausente." }); return; }
+      res.json({ conversations: await listConversations(visitorId) });
+    } catch (error) {
+      console.error("[Conversations] list failed", error);
+      res.status(500).json({ error: "Não foi possível carregar o histórico." });
+    }
+  });
+
+  app.get("/api/conversations/:id", async (req, res) => {
+    try {
+      const visitorId = visitorIdFromRequest(req);
+      const conversationId = Number(req.params.id);
+      if (!visitorId || !Number.isInteger(conversationId)) { res.status(400).json({ error: "Conversa inválida." }); return; }
+      const result = await getConversationMessages(visitorId, conversationId);
+      if (!result) { res.status(404).json({ error: "Conversa não encontrada." }); return; }
+      res.json(result);
+    } catch (error) {
+      console.error("[Conversations] load failed", error);
+      res.status(500).json({ error: "Não foi possível abrir essa conversa." });
+    }
+  });
+
   app.post("/api/chat", async (req, res) => {
     try {
       const input = Array.isArray(req.body?.messages) ? req.body.messages : [];
@@ -317,7 +348,18 @@ async function startServer() {
         res.status(502).json({ error: "O Andreo não retornou conteúdo. Tente novamente." });
         return;
       }
-      res.json({ content });
+      const visitorId = visitorIdFromRequest(req);
+      const conversationId = Number.isInteger(Number(req.body?.conversationId)) ? Number(req.body.conversationId) : undefined;
+      const lastUserMessage = input[input.length - 1] as ChatMessageInput;
+      let savedConversationId: number | null = null;
+      if (visitorId && lastUserMessage?.content) {
+        try {
+          savedConversationId = await saveConversationTurn(visitorId, conversationId, lastUserMessage.content, content, lastUserMessage.attachments?.length ? JSON.stringify(lastUserMessage.attachments) : undefined);
+        } catch (saveError) {
+          console.error("[Conversations] save failed", saveError);
+        }
+      }
+      res.json({ content, conversationId: savedConversationId ?? conversationId ?? null });
     } catch (error) {
       console.error("[Chat] request failed", error);
       const detail = error instanceof Error ? error.message : String(error);
