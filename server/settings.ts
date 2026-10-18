@@ -9,12 +9,14 @@ export const DEFAULT_SETTINGS = {
   chatName: "Andreo",
   displayName: "Andreo AI",
   icon: "A",
+  iconImageUrl: "",
   background: "radial-gradient(circle at 12% 0%, rgba(183,243,74,.08), transparent 28%), linear-gradient(145deg, #101712 0%, #0b0f0d 58%, #0a0d0c 100%)",
+  backgroundImageUrl: "",
   systemPrompt: "Você é Andreo, um assistente de IA técnico, claro e orientado à execução.",
   instructions: "Responda em português quando o usuário escrever em português. Explique decisões, proponha passos concretos e produza código pronto para ser usado. Quando a solicitação envolver web, ajude a pesquisar, estruturar e revisar informações sem inventar fontes.",
 } as const;
 
-type EditableSetting = "chatName" | "displayName" | "icon" | "background" | "systemPrompt" | "instructions";
+type EditableSetting = "chatName" | "displayName" | "icon" | "iconImageUrl" | "background" | "backgroundImageUrl" | "systemPrompt" | "instructions";
 type SettingsPatch = Partial<Record<EditableSetting, string>>;
 
 let memorySettings: AppSettings = { ...DEFAULT_SETTINGS, updatedAt: new Date() };
@@ -24,7 +26,9 @@ function normalizeSettings(values: SettingsPatch) {
     chatName: String(values.chatName ?? DEFAULT_SETTINGS.chatName).trim().slice(0, 80) || DEFAULT_SETTINGS.chatName,
     displayName: String(values.displayName ?? DEFAULT_SETTINGS.displayName).trim().slice(0, 120) || DEFAULT_SETTINGS.displayName,
     icon: String(values.icon ?? DEFAULT_SETTINGS.icon).trim().slice(0, 24) || DEFAULT_SETTINGS.icon,
+    iconImageUrl: String(values.iconImageUrl ?? DEFAULT_SETTINGS.iconImageUrl).trim().slice(0, 512),
     background: String(values.background ?? DEFAULT_SETTINGS.background).trim().slice(0, 5000) || DEFAULT_SETTINGS.background,
+    backgroundImageUrl: String(values.backgroundImageUrl ?? DEFAULT_SETTINGS.backgroundImageUrl).trim().slice(0, 512),
     systemPrompt: String(values.systemPrompt ?? DEFAULT_SETTINGS.systemPrompt).trim().slice(0, 12000) || DEFAULT_SETTINGS.systemPrompt,
     instructions: String(values.instructions ?? DEFAULT_SETTINGS.instructions).trim().slice(0, 12000) || DEFAULT_SETTINGS.instructions,
   };

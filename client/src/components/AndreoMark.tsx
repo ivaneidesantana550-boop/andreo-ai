@@ -2,11 +2,12 @@ import { cn } from "@/lib/utils";
 
 type AndreoMarkProps = {
   icon?: string;
+  imageUrl?: string;
   size?: "sm" | "md" | "lg";
   className?: string;
 };
 
-export default function AndreoMark({ icon = "A", size = "md", className }: AndreoMarkProps) {
+export default function AndreoMark({ icon = "A", imageUrl, size = "md", className }: AndreoMarkProps) {
   const sizes = {
     sm: "h-8 w-8 text-sm",
     md: "h-10 w-10 text-base",
@@ -15,7 +16,7 @@ export default function AndreoMark({ icon = "A", size = "md", className }: Andre
 
   return (
     <div className={cn("andreo-mark", sizes[size], className)} aria-label="Andreo">
-      <span>{icon || "A"}</span>
+      {imageUrl ? <img src={imageUrl} alt="" /> : <span>{icon || "A"}</span>}
     </div>
   );
 }

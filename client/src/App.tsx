@@ -1,8 +1,9 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
-import Admin from "@/pages/Admin";
-import Home from "@/pages/Home";
+import Admin from "@/pages/AdminPanel";
+import BuildLab from "@/pages/BuildLab";
+import Home from "@/pages/HomeWorkspace";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
@@ -12,6 +13,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/andreo-console" component={Admin} />
+      <Route path="/build-lab" component={BuildLab} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

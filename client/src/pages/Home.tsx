@@ -3,6 +3,7 @@ import { Streamdown } from "streamdown";
 import {
   ArrowUp,
   Braces,
+  Boxes,
   Check,
   ChevronRight,
   Code2,
@@ -21,12 +22,15 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link as RouterLink } from "wouter";
 
 type PublicSettings = {
   chatName: string;
   displayName: string;
   icon: string;
+  iconImageUrl: string;
   background: string;
+  backgroundImageUrl: string;
 };
 
 type Message = {
@@ -47,7 +51,9 @@ const defaultSettings: PublicSettings = {
   chatName: "Andreo",
   displayName: "Andreo AI",
   icon: "A",
+  iconImageUrl: "",
   background: "radial-gradient(circle at 12% 0%, rgba(183,243,74,.08), transparent 28%), linear-gradient(145deg, #101712 0%, #0b0f0d 58%, #0a0d0c 100%)",
+  backgroundImageUrl: "",
 };
 
 const tools: Tool[] = [
@@ -143,13 +149,13 @@ export default function Home() {
   };
 
   return (
-    <div className="andreo-app" style={{ background: settings.background }}>
+    <div className="andreo-app" style={{ background: settings.background, ...(settings.backgroundImageUrl ? { backgroundImage: `linear-gradient(rgba(7, 12, 9, .64), rgba(7, 12, 9, .72)), url("${settings.backgroundImageUrl}")`, backgroundSize: "cover", backgroundPosition: "center" } : {}) }}>
       <div className="ambient-glow ambient-glow-one" />
       <div className="ambient-glow ambient-glow-two" />
       <aside className={`workspace-sidebar ${sidebarOpen ? "is-open" : ""}`}>
         <div className="sidebar-head">
           <div className="brand-lockup">
-            <AndreoMark icon={settings.icon} size="sm" />
+            <AndreoMark icon={settings.icon} imageUrl={settings.iconImageUrl} size="sm" />
             <div>
               <div className="wordmark">{settings.chatName}</div>
               <div className="wordmark-sub">AI / WORKSPACE</div>
@@ -165,13 +171,14 @@ export default function Home() {
             return <button key={tool.label} className="tool-list-item" onClick={() => useTool(tool)}><span className={`tool-icon ${tool.tone}`}><Icon size={16} /></span><span><strong>{tool.label}</strong><small>{tool.caption}</small></span><ChevronRight size={14} /></button>;
           })}
         </nav>
+        <RouterLink className="build-lab-link" href="/build-lab"><span className="tool-icon lime"><Boxes size={16} /></span><span><strong>Build Lab</strong><small>APK, EXE, ZIP e sites</small></span><ChevronRight size={14} /></RouterLink>
         <div className="sidebar-spacer" />
         <div className="sidebar-status"><span className="status-dot" /><span><strong>Andreo online</strong><small>Pronto para executar</small></span><span className="status-pulse" /></div>
       </aside>
 
       <main className="workspace-main">
         <header className="topbar">
-          <div className="topbar-left"><button className="icon-button only-mobile" onClick={() => setSidebarOpen(true)} aria-label="Abrir menu"><Menu size={19} /></button><div className="mobile-brand"><AndreoMark icon={settings.icon} size="sm" /><span>{settings.chatName}</span></div><span className="breadcrumb desktop-only"><PanelLeft size={14} /> Workspace <span>/</span> Nova sessão</span></div>
+          <div className="topbar-left"><button className="icon-button only-mobile" onClick={() => setSidebarOpen(true)} aria-label="Abrir menu"><Menu size={19} /></button><div className="mobile-brand"><AndreoMark icon={settings.icon} imageUrl={settings.iconImageUrl} size="sm" /><span>{settings.chatName}</span></div><span className="breadcrumb desktop-only"><PanelLeft size={14} /> Workspace <span>/</span> Nova sessão</span></div>
           <div className="topbar-right"><div className="top-status"><span className="status-dot" /> <span>ONLINE</span></div><button className="top-icon desktop-only" aria-label="Pesquisar"><Search size={16} /></button><button className="top-icon" onClick={resetChat} aria-label="Nova sessão"><MessageSquarePlus size={16} /></button></div>
         </header>
 
@@ -181,11 +188,11 @@ export default function Home() {
             <div className="conversation-intro"><span>17 OUT 2026</span><i /> <span>SESSÃO 01</span></div>
             {messages.map(message => (
               <article key={message.id} className={`message-row ${message.role}`}>
-                {message.role === "assistant" && <AndreoMark icon={settings.icon} size="sm" />}
+                {message.role === "assistant" && <AndreoMark icon={settings.icon} imageUrl={settings.iconImageUrl} size="sm" />}
                 <div className="message-stack"><div className="message-meta"><span>{message.role === "assistant" ? settings.chatName : "Você"}</span><span>{message.role === "assistant" ? "ASSISTANT" : "AGORA"}</span></div><div className="message-bubble">{message.role === "assistant" ? <Streamdown>{message.content}</Streamdown> : <p>{message.content}</p>}</div>{message.role === "assistant" && <div className="message-actions"><button onClick={() => copyMessage(message)}>{copiedId === message.id ? <Check size={13} /> : <Copy size={13} />} {copiedId === message.id ? "Copiado" : "Copiar"}</button></div>}</div>
               </article>
             ))}
-            {sending && <article className="message-row assistant"><AndreoMark icon={settings.icon} size="sm" /><div className="message-stack"><div className="message-meta"><span>{settings.chatName}</span><span>PROCESSANDO</span></div><div className="message-bubble thinking-bubble"><span /><span /><span /></div></div></article>}
+            {sending && <article className="message-row assistant"><AndreoMark icon={settings.icon} imageUrl={settings.iconImageUrl} size="sm" /><div className="message-stack"><div className="message-meta"><span>{settings.chatName}</span><span>PROCESSANDO</span></div><div className="message-bubble thinking-bubble"><span /><span /><span /></div></div></article>}
             <div ref={endRef} />
           </div>
 

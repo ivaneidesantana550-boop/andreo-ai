@@ -20,3 +20,23 @@
 - [x] Permitir alterar o fundo e o ícone do chat.
 - [x] Persistir as configurações administrativas entre sessões e atualizações.
 - [x] Aplicar automaticamente as alterações na experiência do chat.
+
+## Assets visuais por upload
+
+- [x] Permitir enviar uma imagem real para substituir o ícone do chat.
+- [x] Permitir enviar uma imagem real para substituir o fundo do chat.
+- [x] Armazenar os uploads em storage durável e aplicar as URLs no chat após salvar.
+
+## Build Lab e entregas
+
+- [x] Criar um ambiente separado para especificar entregas Android APK, Windows EXE, pacotes ZIP e sites.
+- [x] Permitir registrar pipelines com nome, tipo de saída e briefing do projeto.
+- [x] Mostrar o fluxo de especificação, build e entrega, incluindo o caminho de URL para sites.
+- [ ] Conectar runners nativos de compilação para produzir binários APK/EXE e publicar sites automaticamente em produção.
+
+## Chat multimodal e entregáveis
+
+- [x] Permitir importar múltiplos arquivos pelo chat, armazenando-os no storage e mantendo-os anexados à mensagem.
+- [x] Enviar arquivos de texto/código para o contexto do modelo e encaminhar imagens/PDFs/mídia por URL assinada quando o modelo suportar leitura multimodal.
+- [x] Permitir solicitar uma imagem diretamente no composer e exibir o resultado com download.
+- [x] Permitir pedir um arquivo pelo briefing, gerar seu conteúdo com o Andreo, armazená-lo e entregar um link de download.
