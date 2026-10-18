@@ -1,4 +1,5 @@
 import "dotenv/config";
+import crypto from "node:crypto";
 import express from "express";
 import { createServer } from "http";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
@@ -28,6 +29,13 @@ type ChatMessageInput = { role: "user" | "assistant"; content: string; attachmen
 const MAX_RESPONSE_CHARS = 1_000_000;
 const MAX_COMPLETION_TOKENS_PER_PART = 16_000;
 const MAX_CONTINUATION_PARTS = 64;
+
+type TerminalCommand = { id: string; command: string; status: "queued" | "running" | "done" | "error" | "cancelled"; output?: string; error?: string; createdAt: number };
+type TerminalConnection = { browserToken: string; agentToken?: string; code: string; name: string; status: "waiting" | "connected"; commands: TerminalCommand[]; createdAt: number };
+const terminalConnections = new Map<string, TerminalConnection>();
+function token() { return crypto.randomBytes(24).toString("hex"); }
+function terminalByBrowser(req: express.Request) { return terminalConnections.get(typeof req.query.token === "string" ? req.query.token : typeof req.body?.token === "string" ? req.body.token : ""); }
+function terminalByAgent(req: express.Request) { const agentToken = typeof req.query.agentToken === "string" ? req.query.agentToken : typeof req.body?.agentToken === "string" ? req.body.agentToken : ""; return [...terminalConnections.values()].find(item => item.agentToken === agentToken); }
 function adminTokenFromRequest(req: express.Request) {
   const header = req.header("authorization") || "";
   return header.startsWith("Bearer ") ? header.slice(7) : "";
@@ -168,6 +176,51 @@ async function startServer() {
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
+  app.post("/api/terminal/pair/start", (req, res) => {
+    const browserToken = token();
+    const connection: TerminalConnection = { browserToken, code: String(Math.floor(100000 + Math.random() * 900000)), name: "Terminal local", status: "waiting", commands: [], createdAt: Date.now() };
+    terminalConnections.set(browserToken, connection);
+    res.json({ browserToken, code: connection.code, expiresInSeconds: 600, agentCommand: `node andreo-terminal-agent.mjs ${req.get("origin") || "https://andreo-nfiygksy.manus.space"}` });
+  });
+  app.get("/api/terminal/pair/status", (req, res) => {
+    const connection = terminalByBrowser(req);
+    if (!connection || Date.now() - connection.createdAt > 600000) { res.status(404).json({ error: "Pareamento expirado." }); return; }
+    res.json({ status: connection.status, name: connection.name });
+  });
+  app.post("/api/terminal/agent/claim", (req, res) => {
+    const code = String(req.body?.code || "").trim();
+    const connection = [...terminalConnections.values()].find(item => item.code === code && Date.now() - item.createdAt <= 600000);
+    if (!connection) { res.status(404).json({ error: "Código inválido ou expirado." }); return; }
+    connection.agentToken = token(); connection.name = String(req.body?.name || "Terminal local").slice(0, 80); connection.status = "connected";
+    res.json({ agentToken: connection.agentToken });
+  });
+  app.post("/api/terminal/command", (req, res) => {
+    const connection = terminalByBrowser(req);
+    const command = String(req.body?.command || "").trim();
+    if (!connection || connection.status !== "connected") { res.status(409).json({ error: "Conecte um terminal primeiro." }); return; }
+    if (!command || command.length > 12000) { res.status(400).json({ error: "Comando inválido ou longo demais." }); return; }
+    const item: TerminalCommand = { id: token(), command, status: "queued", createdAt: Date.now() };
+    connection.commands.push(item); res.json({ command: item });
+  });
+  app.get("/api/terminal/commands", (req, res) => {
+    const connection = terminalByBrowser(req);
+    if (!connection) { res.status(404).json({ error: "Terminal não encontrado." }); return; }
+    res.json({ commands: connection.commands.slice(-20) });
+  });
+  app.get("/api/terminal/agent/next", (req, res) => {
+    const connection = terminalByAgent(req);
+    if (!connection) { res.status(401).json({ error: "Agente não autorizado." }); return; }
+    const command = connection.commands.find(item => item.status === "queued");
+    if (command) command.status = "running";
+    res.json({ command: command || null });
+  });
+  app.post("/api/terminal/agent/result", (req, res) => {
+    const connection = terminalByAgent(req);
+    const command = connection?.commands.find(item => item.id === req.body?.commandId);
+    if (!connection || !command) { res.status(404).json({ error: "Comando não encontrado." }); return; }
+    command.status = req.body?.status === "done" ? "done" : "error"; command.output = String(req.body?.output || "").slice(0, 100000); command.error = String(req.body?.error || "").slice(0, 4000);
+    res.json({ ok: true });
+  });
   app.get("/api/platform/config.js", (_req, res) => {
     res.set("Cache-Control", "no-store").type("application/javascript").send(publicPlatformScript());
   });
