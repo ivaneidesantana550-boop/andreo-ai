@@ -17,6 +17,7 @@ import {
 } from "../settings";
 import { storageGetSignedUrl, storagePut } from "../storage";
 import { generateImage } from "./imageGeneration";
+import { strToU8, zipSync } from "fflate";
 
 const CAPABILITY_CONTEXT = `
 Capacidades disponíveis no workspace: geração de código, revisão e refatoração, debugging, explicação de APIs, criação de componentes e sites, pesquisa na web, abertura e leitura de URLs, síntese de páginas, comparação de fontes e planejamento técnico. Seja honesto quando uma ação externa não estiver disponível diretamente e ofereça o próximo passo mais útil.
@@ -90,6 +91,39 @@ function mimeForFile(name: string) {
     jsx: "text/javascript", tsx: "text/typescript", xml: "application/xml",
   };
   return map[extension || ""] || "application/octet-stream";
+}
+
+function parseJsonObject(value: string) {
+  const cleaned = value.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if (start < 0 || end <= start) throw new Error("O gerador não retornou um projeto válido.");
+  return JSON.parse(cleaned.slice(start, end + 1)) as { name?: string; description?: string; files?: Array<{ path?: string; content?: string }> };
+}
+
+async function generateSiteDefinition(brief: string, settings: Awaited<ReturnType<typeof getAppSettings>>) {
+  const prompt = `Crie um site completo e funcional para o seguinte pedido: ${brief}\n\nResponda SOMENTE com JSON válido neste formato: {"name":"nome curto","description":"descrição","files":[{"path":"index.html","content":"..."},{"path":"styles.css","content":"..."},{"path":"script.js","content":"..."}]}. Inclua sempre um index.html pronto para abrir no navegador, com CSS e JavaScript funcionais. Não use placeholders vazios. O index.html deve ser autocontido para servir como preview imediato, mesmo que os demais arquivos também sejam incluídos no ZIP.`;
+  const result = await invokeLLM({
+    messages: [
+      { role: "system", content: `${settings.systemPrompt}\n${settings.instructions}\nVocê é o gerador de artefatos web do Andreo. Gere arquivos reais, completos e executáveis.` },
+      { role: "user", content: prompt },
+    ],
+    maxTokens: 16_000,
+  });
+  return parseJsonObject(contentToText(result.choices?.[0]?.message?.content));
+}
+
+async function generateArtifactDefinition(brief: string, kind: "apk" | "exe", settings: Awaited<ReturnType<typeof getAppSettings>>) {
+  const target = kind === "apk" ? "Android APK" : "Windows EXE";
+  const prompt = `Crie um projeto completo para gerar um ${target} a partir deste pedido: ${brief}\n\nResponda SOMENTE com JSON válido neste formato: {"name":"nome curto","description":"descrição","files":[{"path":"README.md","content":"..."},{"path":"andreo.project.json","content":"..."},{"path":"src/main.txt","content":"..."}]}. Inclua arquivos reais de configuração, código inicial funcional e instruções de build. Não entregue apenas uma explicação.`;
+  const result = await invokeLLM({
+    messages: [
+      { role: "system", content: `${settings.systemPrompt}\n${settings.instructions}\nVocê é o gerador de projetos compiláveis do Andreo. Gere arquivos reais e completos.` },
+      { role: "user", content: prompt },
+    ],
+    maxTokens: 16_000,
+  });
+  return parseJsonObject(contentToText(result.choices?.[0]?.message?.content));
 }
 
 async function enrichMessages(input: ChatMessageInput[]): Promise<Message[]> {
@@ -271,6 +305,66 @@ async function startServer() {
     } catch (error) {
       console.error("[Chat] image generation failed", error);
       res.status(500).json({ error: "Não consegui criar a imagem agora. Tente novamente." });
+    }
+  });
+
+  app.post("/api/chat/create-site", async (req, res) => {
+    try {
+      const brief = typeof req.body?.brief === "string" ? req.body.brief.trim() : "";
+      if (!brief) {
+        res.status(400).json({ error: "Descreva o site que você quer criar." });
+        return;
+      }
+      const settings = await getAppSettings();
+      const definition = await generateSiteDefinition(brief, settings);
+      const files = (definition.files || [])
+        .map(file => ({ path: safeFileName(String(file.path || "arquivo.txt").replace(/^\/+/, ""), "arquivo.txt"), content: String(file.content || "") }))
+        .filter(file => file.content.trim())
+        .slice(0, 40);
+      if (!files.some(file => file.path.toLowerCase() === "index.html")) {
+        res.status(502).json({ error: "O gerador não entregou um index.html funcional." });
+        return;
+      }
+      const zipEntries = Object.fromEntries(files.map(file => [file.path, strToU8(file.content)]));
+      const zipBuffer = Buffer.from(zipSync(zipEntries, { level: 6 }));
+      const slug = safeFileName(String(definition.name || "andreo-site"), "andreo-site").toLowerCase();
+      const stamp = Date.now();
+      const zip = await storagePut(`sites/${stamp}-${slug}.zip`, zipBuffer, "application/zip");
+      const index = files.find(file => file.path.toLowerCase() === "index.html")!;
+      const preview = await storagePut(`sites/${stamp}-${slug}-preview.html`, index.content, "text/html; charset=utf-8");
+      res.json({ name: definition.name || slug, description: definition.description || "Site gerado pelo Andreo.", files: files.map(file => file.path), zipUrl: zip.url, previewUrl: preview.url, zipName: `${slug}.zip` });
+    } catch (error) {
+      console.error("[Chat] site creation failed", error);
+      res.status(500).json({ error: "Não consegui gerar o site completo agora. Tente novamente." });
+    }
+  });
+
+  app.post("/api/chat/create-artifact", async (req, res) => {
+    try {
+      const kind = req.body?.kind === "apk" ? "apk" : req.body?.kind === "exe" ? "exe" : "";
+      const brief = typeof req.body?.brief === "string" ? req.body.brief.trim() : "";
+      if (!kind || !brief) {
+        res.status(400).json({ error: "Informe se o artefato é APK ou EXE e descreva o que deve ser criado." });
+        return;
+      }
+      const settings = await getAppSettings();
+      const definition = await generateArtifactDefinition(brief, kind, settings);
+      const files = (definition.files || [])
+        .map(file => ({ path: safeFileName(String(file.path || "arquivo.txt").replace(/^\/+/, ""), "arquivo.txt"), content: String(file.content || "") }))
+        .filter(file => file.content.trim())
+        .slice(0, 60);
+      if (!files.length) {
+        res.status(502).json({ error: "O gerador não entregou arquivos para este projeto." });
+        return;
+      }
+      const manifest = JSON.stringify({ name: definition.name || `andreo-${kind}-project`, target: kind === "apk" ? "android" : "windows", generatedBy: "andreo", brief, files: files.map(file => file.path) }, null, 2);
+      const zipEntries = Object.fromEntries([...files, { path: "andreo.project.json", content: manifest }].map(file => [file.path, strToU8(file.content)]));
+      const slug = safeFileName(String(definition.name || `andreo-${kind}-project`), `andreo-${kind}-project`).toLowerCase();
+      const zip = await storagePut(`artifacts/${Date.now()}-${slug}.zip`, Buffer.from(zipSync(zipEntries, { level: 6 })), "application/zip");
+      res.json({ name: definition.name || slug, description: definition.description || `Projeto ${kind.toUpperCase()} pronto para compilação.`, zipUrl: zip.url, zipName: `${slug}-${kind}-project.zip`, kind });
+    } catch (error) {
+      console.error("[Chat] artifact creation failed", error);
+      res.status(500).json({ error: "Não consegui gerar o pacote do aplicativo agora. Tente novamente." });
     }
   });
 

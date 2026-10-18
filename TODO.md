@@ -33,6 +33,8 @@
 - [x] Manter o ambiente de projeto integrado e invisível por trás do chat, sem uma aba ou página de ambiente exposta.
 - [x] Executar pedidos de site, app, sistema, APK, EXE ou projeto a partir da conversa, sem abrir um painel automático.
 - [x] Entregar no próprio chat as respostas, imagens, arquivos e links de download produzidos pela execução.
+- [x] Detectar pedidos de site, gerar arquivos reais, empacotar em ZIP e entregar preview publicado para teste.
+- [x] Detectar pedidos de APK e EXE e entregar automaticamente um pacote ZIP de projeto com código, manifesto e instruções de build.
 - [x] Manter a estrutura interna de arquivos/build para uso do executor sem interromper a conversa.
 - [ ] Conectar runners nativos de compilação para produzir binários APK/EXE e publicar sites automaticamente em produção.
 
