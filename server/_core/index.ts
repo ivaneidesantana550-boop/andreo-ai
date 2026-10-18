@@ -192,6 +192,26 @@ async function generateSiteDefinition(brief: string, settings: Awaited<ReturnTyp
   return parseJsonObject(contentToText(result.choices?.[0]?.message?.content));
 }
 
+
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character] || character);
+}
+
+function fallbackSiteDefinition(brief: string) {
+  const cleanBrief = brief.replace(/\s+/g, " ").trim();
+  const title = escapeHtml(cleanBrief.slice(0, 96) || "Uma experiência digital feita para você");
+  const description = escapeHtml(cleanBrief.slice(0, 220) || "Um site funcional criado pelo Andreo.");
+  return {
+    name: "Andreo Site",
+    description: "Site funcional criado pelo gerador local do Andreo enquanto o modelo de IA está indisponível.",
+    files: [
+      { path: "index.html", content: `<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title}</title><link rel="stylesheet" href="styles.css"></head><body><header class="nav"><strong>ANDREO<span>•</span></strong><a href="#contato">Fale conosco</a></header><main><section class="hero"><p class="eyebrow">PROJETO CRIADO PELO ANDREO</p><h1>${title}</h1><p class="lead">${description}</p><a class="button" href="#contato">Começar agora <span>→</span></a></section><section class="cards"><article><b>01</b><h2>Clareza</h2><p>Uma estrutura direta para apresentar sua ideia com impacto.</p></article><article><b>02</b><h2>Presença</h2><p>Design responsivo, rápido e pronto para abrir no navegador.</p></article><article><b>03</b><h2>Ação</h2><p>Um próximo passo claro para transformar visita em contato.</p></article></section><section id="contato" class="contact"><div><p class="eyebrow">VAMOS CONSTRUIR</p><h2>Conte o que você precisa.</h2></div><form id="contact-form"><input required type="email" placeholder="Seu melhor e-mail"><button class="button" type="submit">Enviar mensagem</button><small id="form-status"></small></form></section></main><footer>Feito com Andreo AI · ${new Date().getFullYear()}</footer><script src="script.js"></script></body></html>` },
+      { path: "styles.css", content: `:root{font-family:Inter,ui-sans-serif,system-ui,sans-serif;color:#f5f7f2;background:#0b100d}*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 80% 8%,#21452b 0,transparent 32%),#0b100d}.nav{max-width:1120px;margin:auto;padding:28px 5vw;display:flex;justify-content:space-between;align-items:center}.nav strong{letter-spacing:.16em}.nav strong span{color:#b7f34a}.nav a{color:#d2ddce;text-decoration:none}.hero{max-width:1120px;margin:8vh auto 0;padding:0 5vw 11vh}.eyebrow{color:#b7f34a;letter-spacing:.16em;font-size:12px;font-weight:700}.hero h1{font-size:clamp(42px,8vw,92px);line-height:.98;max-width:850px;margin:22px 0}.lead{max-width:570px;color:#b7c5b7;font-size:19px;line-height:1.6}.button{display:inline-flex;gap:22px;align-items:center;background:#b7f34a;color:#101710;border:0;border-radius:999px;padding:15px 22px;font-weight:800;text-decoration:none;cursor:pointer}.cards{max-width:1120px;margin:auto;padding:0 5vw 11vh;display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.cards article{padding:28px;border:1px solid #28352a;border-radius:18px;background:#111a13}.cards b{color:#b7f34a}.cards h2{margin-bottom:8px}.cards p{color:#9eaf9f;line-height:1.5}.contact{max-width:1120px;margin:auto;padding:60px 5vw;display:flex;justify-content:space-between;gap:40px;border-top:1px solid #28352a}.contact h2{font-size:clamp(30px,5vw,58px);margin:12px 0}.contact form{display:flex;flex-direction:column;gap:12px;min-width:min(100%,360px);justify-content:center}.contact input{padding:16px;border-radius:10px;border:1px solid #38483a;background:#111a13;color:white}.contact small{color:#b7f34a}footer{padding:28px 5vw;color:#738174;text-align:center;border-top:1px solid #1e2a20}@media(max-width:700px){.cards,.contact{display:block}.cards article{margin-bottom:12px}.contact form{margin-top:28px}.nav{padding-top:20px}}` },
+      { path: "script.js", content: `document.getElementById('contact-form').addEventListener('submit',function(event){event.preventDefault();document.getElementById('form-status').textContent='Mensagem pronta para ser atendida.';this.reset();});` },
+    ],
+  };
+}
+
 async function generateArtifactDefinition(brief: string, kind: "apk" | "exe", settings: Awaited<ReturnType<typeof getAppSettings>>) {
   const target = kind === "apk" ? "Android APK" : "Windows EXE";
   const targetRules = kind === "apk"
@@ -400,7 +420,15 @@ async function startServer() {
         return;
       }
       const settings = await getAppSettings();
-      const definition = await generateSiteDefinition(brief, settings);
+      let usedFallback = false;
+      let definition: Awaited<ReturnType<typeof generateSiteDefinition>>;
+      try {
+        definition = await generateSiteDefinition(brief, settings);
+      } catch (error) {
+        usedFallback = true;
+        console.error("[Chat] site AI generator unavailable; using local fallback", error);
+        definition = fallbackSiteDefinition(brief);
+      }
       const files = (definition.files || [])
         .map(file => ({ path: safeRelativePath(String(file.path || "arquivo.txt").replace(/^\/+/, ""), "arquivo.txt"), content: String(file.content || "") }))
         .filter(file => file.content.trim())
@@ -416,7 +444,7 @@ async function startServer() {
       const zip = await storagePut(`sites/${stamp}-${slug}.zip`, zipBuffer, "application/zip");
       const index = files.find(file => file.path.toLowerCase() === "index.html")!;
       const preview = await storagePut(`sites/${stamp}-${slug}-preview.html`, index.content, "text/html; charset=utf-8");
-      res.json({ name: definition.name || slug, description: definition.description || "Site gerado pelo Andreo.", files: files.map(file => file.path), zipUrl: zip.url, previewUrl: preview.url, zipName: `${slug}.zip` });
+      res.json({ name: definition.name || slug, description: usedFallback ? `${definition.description} O pedido foi preservado no conteúdo-base e você já pode baixar e testar.` : definition.description || "Site gerado pelo Andreo.", files: files.map(file => file.path), zipUrl: zip.url, previewUrl: preview.url, zipName: `${slug}.zip`, fallback: usedFallback });
     } catch (error) {
       console.error("[Chat] site creation failed", error);
       res.status(500).json({ error: "Não consegui gerar o site completo agora. Tente novamente." });
