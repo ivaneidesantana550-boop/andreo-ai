@@ -1,14 +1,27 @@
 # Andreo AI
 
-React / Express / tRPC / Drizzle starter, adapted from the Sandbox web-db-user template.
+Chat AI mobile-first para criar código, sites e artefatos reais. O Andreo gera sites com ZIP e preview testável, arquivos baixáveis e pacotes de projeto para APK/EXE.
 
-- `pnpm dev`: development server; honors `PORT` (default 3000).
-- `pnpm build` / `pnpm start`: build and serve `dist/index.js` and `dist/public/`.
-- `pnpm db:migrate`: apply checked-in migrations. `pnpm db:push`: generate and apply new schema changes.
-- `pnpm check` / `pnpm test`: types and application tests.
+## Desenvolvimento
 
-Start with the Webdev skill's default-template guide. Platform login, storage, payments and service contracts live in its shared references; read the relevant capability before extending its helper.
+- `pnpm dev`: servidor de desenvolvimento; respeita `PORT` (padrão 3000).
+- `pnpm build` / `pnpm start`: compilam e servem `dist/index.js` e `dist/public/`.
+- `pnpm db:migrate`: aplica migrações versionadas.
+- `pnpm db:push`: gera e aplica alterações do schema.
+- `pnpm check` / `pnpm test`: checagem TypeScript e testes.
 
-`server/_core/publicConfig.ts` exposes only named public runtime values. Private keys stay server-side. The platform serves managed `/manus-storage/` assets; the application does not register a second proxy.
+## Entregas
 
-Platform configuration is readable and editable through `webdev.config`. Default settings are initial values, not enforced constraints. The agent may modify the files, commands and configuration or follow the flexible guide for another stack.
+- Sites: o chat gera `index.html`, estilos e scripts, publica um preview em storage e entrega um ZIP.
+- APK: o chat entrega um ZIP de projeto; `.github/workflows/build-android.yml` compila com Java 17, Android SDK e Gradle no GitHub Actions.
+- EXE: o chat entrega um ZIP de projeto; `.github/workflows/build-windows.yml` compila em `windows-latest` e publica o EXE.
+
+Consulte [`BUILD_RUNNER.md`](BUILD_RUNNER.md) para os inputs dos workflows.
+
+## Configuração
+
+O painel administrativo fica em `/andreo-console`. A senha é validada no servidor. O banco persiste identidade, textos do chat, system prompt, instruções e URLs de imagens.
+
+`server/_core/publicConfig.ts` expõe somente valores públicos nomeados. Chaves privadas permanecem no servidor. O storage gerenciado serve assets em `/manus-storage/`.
+
+A configuração da plataforma é legível e editável por `webdev.config`. Os valores padrão são iniciais, não restrições permanentes.
