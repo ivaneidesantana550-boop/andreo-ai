@@ -1,0 +1,53 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_url:
+        description: "URL do ZIP do projeto gerado pelo Andreo"
+        required: true
+        type: string
+      artifact_name:
+        description: "Nome do artefato"
+        required: false
+        default: "andreo-android"
+        type: string
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar projeto do Andreo
+        shell: bash
+        run: |
+          mkdir -p project
+          curl -fL "${{ inputs.project_url }}" -o project/source.zip
+          unzip -q project/source.zip -d project/source
+
+      - name: Configurar Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Configurar Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Compilar APK debug
+        working-directory: project/source
+        shell: bash
+        run: |
+          if [ ! -f ./gradlew ]; then
+            echo "O pacote não contém um projeto Gradle Android com gradlew."
+            exit 1
+          fi
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Publicar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: project/source/**/build/outputs/apk/**/*.apk
+          if-no-files-found: error

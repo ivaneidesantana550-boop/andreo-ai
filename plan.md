@@ -13,6 +13,7 @@ Construir um chat AI chamado **Andreo**, otimizado primeiro para celular, com co
 - **Persistência:** nova tabela singleton `appSettings` no Drizzle/MySQL com identidade, comportamento e URLs de assets configuráveis; imagens são enviadas para o storage durável.
 - **Conteúdo administrável:** o console controla a mensagem inicial, etiqueta superior, descrição, placeholder, subtítulo da marca, rótulos de status, nomes de usuário/assistente, botão de nova sessão e as três sugestões rápidas do chat.
 - **Artefatos:** pedidos de site geram arquivos reais, ZIP e preview em storage; pedidos de APK/EXE geram automaticamente um pacote de projeto completo com manifesto e instruções. A compilação binária final depende de Android SDK/Gradle ou toolchain Windows conectados ao ambiente.
+- **Runner nativo:** workflows GitHub Actions em `.github/workflows` usam `ubuntu-latest` com Android SDK/Gradle para APK e `windows-latest` com Node/Electron para EXE; os resultados são publicados como artefatos da execução.
 - **Rotas:** `/` para o chat e `/andreo-console` para o painel. O executor de projetos permanece interno ao fluxo de conversa e não é exposto como página ou aba.
 - **Recursos:** servidor e banco já habilitados; o chat usa a API LLM gerenciada do Manus sem chave externa.
 
