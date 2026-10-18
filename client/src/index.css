@@ -101,6 +101,10 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .terminal-error { color: #ff9e9e !important; }
 .terminal-modal footer { display: flex; gap: 7px; margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--andreo-border); }
 .terminal-connect-button { color: var(--andreo-lime) !important; }
+.terminal-status-chip { display: inline-flex; align-items: center; gap: 5px; padding: 6px 8px; border: 1px solid rgba(183,243,74,.3); border-radius: 7px; color: var(--andreo-lime); background: rgba(183,243,74,.06); font: 9px var(--andreo-mono); letter-spacing: .04em; }
+.terminal-command-card { display: grid; gap: 9px; margin-top: 12px; padding: 11px; border: 1px solid rgba(183,243,74,.32); border-radius: 8px; background: rgba(183,243,74,.06); }
+.terminal-command-card code { overflow-wrap: anywhere; color: var(--andreo-lime); font: 11px/1.5 var(--andreo-mono); white-space: pre-wrap; }
+.terminal-command-card button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: fit-content; padding: 8px 10px; border: 0; border-radius: 7px; color: #14200e; background: var(--andreo-lime); font-size: 11px; font-weight: 700; }
 .topbar { height: 68px; justify-content: space-between; padding: 0 33px; border-bottom: 1px solid var(--andreo-border); background: rgba(8,12,10,.3); }
 .topbar-left, .topbar-right { gap: 16px; }
 .breadcrumb { display: flex; align-items: center; gap: 9px; color: var(--andreo-dim); font-family: var(--andreo-mono); font-size: 10px; letter-spacing: .05em; }

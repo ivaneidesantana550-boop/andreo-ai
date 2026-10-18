@@ -93,6 +93,11 @@ function cleanAssistantText(value: string) {
     .trim();
 }
 
+function extractTerminalCommand(value: string) {
+  const match = value.match(/<terminal_command>\s*([\s\S]*?)\s*<\/terminal_command>/i);
+  return match?.[1]?.trim().slice(0, 12000) || "";
+}
+
 function safeFileName(value: string, fallback: string) {
   const name = value.trim().replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 100);
   return name || fallback;
@@ -412,8 +417,12 @@ async function startServer() {
       }
 
       const settings = await getAppSettings();
-      const system = `Regras permanentes: responda com profissionalismo e respeito. Não incentive invasões, malware, keyloggers, roubo de dados ou outras ações ilícitas. Quando um pedido for inseguro, explique o risco e ofereça uma alternativa legítima.\n\n${CAPABILITY_CONTEXT}\n\nInstruções operacionais adicionais:\n${settings.instructions}\n\nSYSTEM PROMPT PERSONALIZADO DO ADMINISTRADOR — aplique este texto como a identidade, o estilo e o comportamento principal do Andreo:\n${settings.systemPrompt}`;
-      const content = await generateLongCompletion(system, history);
+      const terminalConnected = Boolean(terminalByBrowser(req)?.status === "connected");
+      const terminalInstruction = terminalConnected ? "\n\nTERMINAL LOCAL CONECTADO: quando o usuário pedir para executar, instalar, analisar ou usar uma ferramenta no terminal, explique brevemente e inclua exatamente um comando shell dentro de <terminal_command>comando aqui</terminal_command>. Nunca diga que executou antes de receber o resultado. O usuário verá o comando e confirmará antes do envio. Para testes de segurança, só ajude quando o alvo for autorizado pelo usuário.\n" : "";
+      const system = `Regras permanentes: responda com profissionalismo e respeito. Não incentive invasões, malware, keyloggers, roubo de dados ou outras ações ilícitas. Quando um pedido for inseguro, explique o risco e ofereça uma alternativa legítima.\n\n${CAPABILITY_CONTEXT}\n${terminalInstruction}\nInstruções operacionais adicionais:\n${settings.instructions}\n\nSYSTEM PROMPT PERSONALIZADO DO ADMINISTRADOR — aplique este texto como a identidade, o estilo e o comportamento principal do Andreo:\n${settings.systemPrompt}`;
+      const rawContent = await generateLongCompletion(system, history);
+      const terminalCommand = terminalConnected ? extractTerminalCommand(rawContent) : "";
+      const content = rawContent.replace(/<terminal_command>[\s\S]*?<\/terminal_command>/gi, "").trim();
       if (!content) {
         res.status(502).json({ error: "O Andreo não retornou conteúdo. Tente novamente." });
         return;
@@ -429,7 +438,7 @@ async function startServer() {
           console.error("[Conversations] save failed", saveError);
         }
       }
-      res.json({ content, conversationId: savedConversationId ?? conversationId ?? null });
+      res.json({ content, terminalCommand: terminalCommand || null, terminalConnected, conversationId: savedConversationId ?? conversationId ?? null });
     } catch (error) {
       console.error("[Chat] request failed", error);
       const detail = error instanceof Error ? error.message : String(error);
