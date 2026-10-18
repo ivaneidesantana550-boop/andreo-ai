@@ -6,9 +6,11 @@ const execAsync = promisify(exec);
 const base = process.argv[2] || "https://andreo-nfiygksy.manus.space";
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 const ask = question => new Promise(resolve => rl.question(question, resolve));
-const code = (await ask("Código exibido no Andreo: ")).trim();
-const name = (await ask("Nome deste terminal (opcional): ")).trim() || "Terminal local";
-const claim = await fetch(`${base}/api/terminal/agent/claim`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code, name }) });
+const tokenIndex = process.argv.indexOf("--token");
+const joinToken = tokenIndex >= 0 ? process.argv[tokenIndex + 1] : "";
+const code = joinToken ? "" : (await ask("Código exibido no Andreo: ")).trim();
+const name = (joinToken ? "Terminal local" : await ask("Nome deste terminal (opcional): ")).trim() || "Terminal local";
+const claim = await fetch(`${base}/api/terminal/agent/${joinToken ? "connect" : "claim"}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(joinToken ? { joinToken, name } : { code, name }) });
 if (!claim.ok) { console.error("Não foi possível parear:", await claim.text()); process.exit(1); }
 const { agentToken } = await claim.json();
 console.log("Terminal conectado. Mantenha esta janela aberta.");

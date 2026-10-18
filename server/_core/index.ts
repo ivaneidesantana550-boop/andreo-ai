@@ -31,7 +31,7 @@ const MAX_COMPLETION_TOKENS_PER_PART = 16_000;
 const MAX_CONTINUATION_PARTS = 64;
 
 type TerminalCommand = { id: string; command: string; status: "queued" | "running" | "done" | "error" | "cancelled"; output?: string; error?: string; createdAt: number };
-type TerminalConnection = { browserToken: string; agentToken?: string; code: string; name: string; status: "waiting" | "connected"; commands: TerminalCommand[]; createdAt: number };
+type TerminalConnection = { browserToken: string; joinToken: string; agentToken?: string; code: string; name: string; status: "waiting" | "connected"; commands: TerminalCommand[]; createdAt: number };
 const terminalConnections = new Map<string, TerminalConnection>();
 function token() { return crypto.randomBytes(24).toString("hex"); }
 function terminalByBrowser(req: express.Request) { return terminalConnections.get(typeof req.query.token === "string" ? req.query.token : typeof req.body?.token === "string" ? req.body.token : ""); }
@@ -178,9 +178,11 @@ async function startServer() {
   app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
   app.post("/api/terminal/pair/start", (req, res) => {
     const browserToken = token();
-    const connection: TerminalConnection = { browserToken, code: String(Math.floor(100000 + Math.random() * 900000)), name: "Terminal local", status: "waiting", commands: [], createdAt: Date.now() };
+    const joinToken = token();
+    const connection: TerminalConnection = { browserToken, joinToken, code: String(Math.floor(100000 + Math.random() * 900000)), name: "Terminal local", status: "waiting", commands: [], createdAt: Date.now() };
     terminalConnections.set(browserToken, connection);
-    res.json({ browserToken, code: connection.code, expiresInSeconds: 600, agentCommand: `node andreo-terminal-agent.mjs ${req.get("origin") || "https://andreo-nfiygksy.manus.space"}` });
+    const origin = req.get("origin") || "https://andreo-nfiygksy.manus.space";
+    res.json({ browserToken, code: connection.code, expiresInSeconds: 600, agentCommand: `node andreo-terminal-agent.mjs ${origin} --token ${joinToken}` });
   });
   app.get("/api/terminal/pair/status", (req, res) => {
     const connection = terminalByBrowser(req);
@@ -191,6 +193,13 @@ async function startServer() {
     const code = String(req.body?.code || "").trim();
     const connection = [...terminalConnections.values()].find(item => item.code === code && Date.now() - item.createdAt <= 600000);
     if (!connection) { res.status(404).json({ error: "Código inválido ou expirado." }); return; }
+    connection.agentToken = token(); connection.name = String(req.body?.name || "Terminal local").slice(0, 80); connection.status = "connected";
+    res.json({ agentToken: connection.agentToken });
+  });
+  app.post("/api/terminal/agent/connect", (req, res) => {
+    const joinToken = String(req.body?.joinToken || "");
+    const connection = [...terminalConnections.values()].find(item => item.joinToken === joinToken && Date.now() - item.createdAt <= 600000);
+    if (!connection) { res.status(404).json({ error: "Token inválido ou expirado." }); return; }
     connection.agentToken = token(); connection.name = String(req.body?.name || "Terminal local").slice(0, 80); connection.status = "connected";
     res.json({ agentToken: connection.agentToken });
   });
