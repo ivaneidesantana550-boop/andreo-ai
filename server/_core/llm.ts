@@ -216,12 +216,23 @@ const platformApiBase = () => {
   if (!ENV.forgeApiUrl.trim()) throw new Error("MANUS_API_URL is not configured");
   return ENV.forgeApiUrl.replace(/\/$/, "");
 };
-const resolveApiUrl = () => `${platformApiBase()}/v1/chat/completions`;
+
+const provider = () => {
+  const xKiroKey = process.env.XKIRO_API_KEY?.trim();
+  if (xKiroKey) {
+    return {
+      baseUrl: (process.env.XKIRO_API_BASE?.trim() || "https://api.xkiro.com/v1").replace(/\/$/, ""),
+      apiKey: xKiroKey,
+      defaultModel: process.env.XKIRO_MODEL?.trim() || "qwen/qwen3-coder-plus:free",
+    };
+  }
+  return { baseUrl: `${platformApiBase()}/v1`, apiKey: ENV.forgeApiKey, defaultModel: undefined };
+};
+
+const resolveApiUrl = () => `${provider().baseUrl}/chat/completions`;
 
 const assertApiKey = () => {
-  if (!ENV.forgeApiKey) {
-    throw new Error("MANUS_API_KEY is not configured");
-  }
+  if (!provider().apiKey) throw new Error("Nenhum provedor de IA está configurado");
 };
 
 const normalizeResponseFormat = ({
@@ -364,8 +375,9 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     messages: messages.map(normalizeMessage),
   };
 
-  if (model) {
-    payload.model = model;
+  const activeProvider = provider();
+  if (model || activeProvider.defaultModel) {
+    payload.model = model || activeProvider.defaultModel;
   }
 
   if (tools && tools.length > 0) {
@@ -407,7 +419,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      authorization: `Bearer ${ENV.forgeApiKey}`,
+      authorization: `Bearer ${provider().apiKey}`,
     },
     body: JSON.stringify(payload),
   });
@@ -437,10 +449,10 @@ export type ModelsResponse = {
 export async function listLLMModels(): Promise<ModelsResponse> {
   assertApiKey();
 
-  const url = `${platformApiBase()}/v1/models`;
+  const url = `${provider().baseUrl}/models`;
 
   const response = await fetchWithBackoff(url, {
-    headers: { authorization: `Bearer ${ENV.forgeApiKey}` },
+    headers: { authorization: `Bearer ${provider().apiKey}` },
   });
 
   if (!response.ok) {

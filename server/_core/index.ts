@@ -76,6 +76,13 @@ function contentToText(content: unknown) {
   return "";
 }
 
+function cleanAssistantText(value: string) {
+  return value
+    .replace(/^\s*\$\$\[\]\$\$\s*/i, "")
+    .replace(/^\s*<think>[\s\S]*?<\/think>\s*/i, "")
+    .trim();
+}
+
 function safeFileName(value: string, fallback: string) {
   const name = value.trim().replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 100);
   return name || fallback;
@@ -135,7 +142,7 @@ async function generateLongCompletion(system: string, history: Message[]) {
       messages: [{ role: "system", content: system }, ...conversation],
       maxTokens: MAX_COMPLETION_TOKENS_PER_PART,
     });
-    const piece = contentToText(result.choices?.[0]?.message?.content);
+    const piece = cleanAssistantText(contentToText(result.choices?.[0]?.message?.content));
     if (!piece) break;
     combined += piece.slice(0, MAX_RESPONSE_CHARS - combined.length);
     const finishReason = result.choices?.[0]?.finish_reason;
@@ -304,7 +311,7 @@ async function startServer() {
       }
 
       const settings = await getAppSettings();
-      const system = `${settings.systemPrompt}\n\nInstruções operacionais:\n${settings.instructions}\n${CAPABILITY_CONTEXT}`;
+      const system = `${settings.systemPrompt}\n\nInstruções operacionais:\n${settings.instructions}\n${CAPABILITY_CONTEXT}\n\nRegras permanentes: responda com profissionalismo e respeito, sem palavrões. Não incentive invasões, malware, keyloggers, roubo de dados ou outras ações ilícitas. Quando um pedido for inseguro, explique o risco e ofereça uma alternativa legítima.`;
       const content = await generateLongCompletion(system, history);
       if (!content) {
         res.status(502).json({ error: "O Andreo não retornou conteúdo. Tente novamente." });
