@@ -26,12 +26,13 @@ jobs:
           packages: platform-tools
       - name: Install Android platform
         run: yes | sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
-      - name: Build debug APK
-        uses: gradle/gradle-build-action@v3
+      - name: Gradle 8.7 sem cache externo
+        uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
-          arguments: :app:assembleDebug --no-daemon
-          build-root-directory: android
+          cache-disabled: true
+      - name: Build debug APK
+        run: gradle -p android :app:assembleDebug --no-daemon
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
