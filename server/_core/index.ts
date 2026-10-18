@@ -224,6 +224,32 @@ function fallbackSiteDefinition(brief: string) {
   return { name: theme.brand, description: `Site completo para ${safeSubject || "sua ideia"}, com identidade visual, navegação responsiva e interação de contato.`, files: [{ path: "index.html", content: index }, { path: "styles.css", content: css }, { path: "script.js", content: script }] };
 }
 
+
+function fallbackArtifactDefinition(brief: string, kind: "apk" | "exe") {
+  const cleanBrief = brief.replace(/\s+/g, " ").trim();
+  const safeLabel = cleanBrief.slice(0, 100).replace(/[^a-zA-Z0-9À-ÿ .,!?-]/g, "");
+  if (kind === "apk") {
+    const javaLabel = safeLabel.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    return { name: "Andreo Android App", description: "Aplicativo Android Java pronto para compilação automática.", files: [
+      { path: "settings.gradle", content: "pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }\ndependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }\nrootProject.name='AndreoApp'\ninclude ':app'\n" },
+      { path: "build.gradle", content: "plugins { id 'com.android.application' version '8.7.2' apply false }\n" },
+      { path: "gradle.properties", content: "org.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8\nandroid.useAndroidX=true\n" },
+      { path: "app/build.gradle", content: "plugins { id 'com.android.application' }\nandroid { namespace 'com.andreo.app'; compileSdk 35\n defaultConfig { applicationId 'com.andreo.app'; minSdk 24; targetSdk 35; versionCode 1; versionName '1.0' }\n}\n" },
+      { path: "app/src/main/AndroidManifest.xml", content: "<manifest xmlns:android='http://schemas.android.com/apk/res/android'><application android:theme='@style/AppTheme' android:label='Andreo'><activity android:name='.MainActivity' android:exported='true'><intent-filter><action android:name='android.intent.action.MAIN'/><category android:name='android.intent.category.LAUNCHER'/></intent-filter></activity></application></manifest>" },
+      { path: "app/src/main/res/values/styles.xml", content: "<resources><style name='AppTheme' parent='android:style/Theme.Material.Light.NoActionBar'><item name='android:fontFamily'>sans</item></style></resources>" },
+      { path: "app/src/main/java/com/andreo/app/MainActivity.java", content: `package com.andreo.app;\nimport android.app.Activity;\nimport android.os.Bundle;\nimport android.widget.TextView;\npublic class MainActivity extends Activity { @Override public void onCreate(Bundle state) { super.onCreate(state); TextView view = new TextView(this); view.setText("${javaLabel}"); view.setTextSize(20); view.setPadding(32,32,32,32); setContentView(view); } }\n` },
+      { path: "README.md", content: `# Andreo Android App\n\nPedido: ${cleanBrief}\n\nProjeto Java Android pronto para assembleDebug.\n` },
+    ] };
+  }
+  const packageJson = JSON.stringify({ name: "andreo-desktop-app", version: "1.0.0", main: "main.js", scripts: { "build:win": "electron-builder --win --x64" }, devDependencies: { electron: "^30.0.0", "electron-builder": "^24.13.3" }, build: { appId: "com.andreo.desktop", productName: "Andreo Desktop", files: ["main.js", "index.html"], win: { target: ["portable"] } } }, null, 2);
+  return { name: "Andreo Desktop App", description: "Aplicativo Electron pronto para compilação automática no Windows.", files: [
+    { path: "package.json", content: packageJson },
+    { path: "main.js", content: "const { app, BrowserWindow } = require('electron'); function createWindow(){ const win = new BrowserWindow({width:1200,height:800}); win.loadFile('index.html'); } app.whenReady().then(createWindow); app.on('window-all-closed',()=>{if(process.platform!=='darwin')app.quit();});\n" },
+    { path: "index.html", content: `<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Andreo Desktop</title><style>body{font-family:system-ui;background:#111a13;color:#f5f7f2;display:grid;place-items:center;min-height:100vh;margin:0}main{max-width:720px;padding:48px}h1{font-size:54px;color:#b7f34a}p{font-size:20px;line-height:1.6;color:#b7c5b7}</style></head><body><main><small>ANDREO DESKTOP</small><h1>Seu aplicativo começa aqui.</h1><p>${escapeHtml(cleanBrief)}</p></main></body></html>` },
+    { path: "README.md", content: `# Andreo Desktop App\n\nPedido: ${cleanBrief}\n\nProjeto Electron pronto para build: npm install && npm run build:win.\n` },
+  ] };
+}
+
 async function generateArtifactDefinition(brief: string, kind: "apk" | "exe", settings: Awaited<ReturnType<typeof getAppSettings>>) {
   const target = kind === "apk" ? "Android APK" : "Windows EXE";
   const targetRules = kind === "apk"
@@ -473,7 +499,15 @@ async function startServer() {
         return;
       }
       const settings = await getAppSettings();
-      const definition = await generateArtifactDefinition(brief, kind, settings);
+      let usedFallback = false;
+      let definition: Awaited<ReturnType<typeof generateArtifactDefinition>>;
+      try {
+        definition = await generateArtifactDefinition(brief, kind, settings);
+      } catch (error) {
+        usedFallback = true;
+        console.error(`[Chat] ${kind} AI generator unavailable; using compilable base`, error);
+        definition = fallbackArtifactDefinition(brief, kind);
+      }
       const files = (definition.files || [])
         .map(file => ({ path: safeRelativePath(String(file.path || "arquivo.txt").replace(/^\/+/, ""), "arquivo.txt"), content: String(file.content || "") }))
         .filter(file => file.content.trim())
@@ -493,7 +527,7 @@ async function startServer() {
       if (projectUrl) {
         build = await dispatchBuild(kind, projectUrl, `${slug}-${kind}`);
       }
-      res.json({ name: definition.name || slug, description: definition.description || `Projeto ${kind.toUpperCase()} pronto para compilação.`, zipUrl: zip.url, zipName: `${slug}-${kind}-project.zip`, kind, build });
+      res.json({ name: definition.name || slug, description: usedFallback ? `${definition.description} O pedido original foi incluído no README do projeto.` : definition.description || `Projeto ${kind.toUpperCase()} pronto para compilação.`, zipUrl: zip.url, zipName: `${slug}-${kind}-project.zip`, kind, build, fallback: usedFallback });
     } catch (error) {
       console.error("[Chat] artifact creation failed", error);
       res.status(500).json({ error: "Não consegui gerar o pacote do aplicativo agora. Tente novamente." });
