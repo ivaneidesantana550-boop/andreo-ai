@@ -131,7 +131,8 @@ async function githubRequest(path: string, init: RequestInit = {}) {
       ...(init.headers || {}),
     },
   });
-  if (!response.ok) {
+  const isManualRedirect = init.redirect === "manual" && response.status >= 300 && response.status < 400;
+  if (!response.ok && !isManualRedirect) {
     const detail = await response.text();
     throw new Error(`GitHub Actions respondeu ${response.status}: ${detail.slice(0, 240)}`);
   }
