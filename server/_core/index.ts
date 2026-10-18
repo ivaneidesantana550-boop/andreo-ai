@@ -182,7 +182,8 @@ async function startServer() {
     const connection: TerminalConnection = { browserToken, joinToken, code: String(Math.floor(100000 + Math.random() * 900000)), name: "Terminal local", status: "waiting", commands: [], createdAt: Date.now() };
     terminalConnections.set(browserToken, connection);
     const origin = req.get("origin") || "https://andreo-nfiygksy.manus.space";
-    res.json({ browserToken, code: connection.code, expiresInSeconds: 600, agentCommand: `node andreo-terminal-agent.mjs ${origin} --token ${joinToken}` });
+    const agentUrl = `${origin}/andreo-terminal-agent.mjs`;
+    res.json({ browserToken, code: connection.code, expiresInSeconds: 600, agentCommand: `curl -fsSL ${agentUrl} -o "$HOME/andreo-terminal-agent.mjs" && node "$HOME/andreo-terminal-agent.mjs" ${origin} --token ${joinToken}`, windowsCommand: `Invoke-WebRequest -Uri "${agentUrl}" -OutFile "$env:TEMP\\andreo-terminal-agent.mjs"; node "$env:TEMP\\andreo-terminal-agent.mjs" ${origin} --token ${joinToken}` });
   });
   app.get("/api/terminal/pair/status", (req, res) => {
     const connection = terminalByBrowser(req);
