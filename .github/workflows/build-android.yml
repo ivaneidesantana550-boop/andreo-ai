@@ -48,12 +48,15 @@ jobs:
         working-directory: project/source
         shell: bash
         run: |
-          if [ ! -f ./gradlew ]; then
-            echo "O pacote não contém um projeto Gradle Android com gradlew."
+          if command -v gradle >/dev/null 2>&1; then
+            gradle assembleDebug --no-daemon
+          elif [ -f ./gradlew ]; then
+            chmod +x ./gradlew
+            ./gradlew assembleDebug --no-daemon
+          else
+            echo "O pacote não contém um projeto Gradle Android compilável."
             exit 1
           fi
-          chmod +x ./gradlew
-          ./gradlew assembleDebug --no-daemon
 
       - name: Publicar APK
         uses: actions/upload-artifact@v4
