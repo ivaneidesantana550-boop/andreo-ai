@@ -179,7 +179,11 @@ function parseJsonObject(value: string) {
 }
 
 async function generateSiteDefinition(brief: string, settings: Awaited<ReturnType<typeof getAppSettings>>) {
-  const prompt = `Crie um site completo e funcional para o seguinte pedido: ${brief}\n\nResponda SOMENTE com JSON válido neste formato: {"name":"nome curto","description":"descrição","files":[{"path":"index.html","content":"..."},{"path":"styles.css","content":"..."},{"path":"script.js","content":"..."}]}. Inclua sempre um index.html pronto para abrir no navegador, com CSS e JavaScript funcionais. Não use placeholders vazios. O index.html deve ser autocontido para servir como preview imediato, mesmo que os demais arquivos também sejam incluídos no ZIP.`;
+  const prompt = `Crie um projeto de site completo e funcional para o seguinte pedido: ${brief}
+
+Escolha a melhor stack para o pedido e preserve a stack solicitada pelo usuário. Você pode usar HTML/CSS/JavaScript, TypeScript, React, Vue, Angular, Next.js, Vite, Node/Express, PHP, Python, Java, Ruby, Go ou outra linguagem/framework adequado. Gere a estrutura real do projeto, incluindo package.json, arquivos de configuração, código-fonte, componentes, rotas, estilos, assets textuais e README quando forem necessários. Não reduza um pedido de React, Vue, backend ou aplicação full-stack a uma página HTML estática. Não use placeholders vazios.
+
+Responda SOMENTE com JSON válido neste formato: {"name":"nome curto","description":"descrição","files":[{"path":"caminho/real.ext","content":"conteúdo completo"}]}. Cada item de files deve ser um arquivo real e completo, com caminhos relativos seguros. Para projetos que tenham uma entrada web estática, inclua também index.html para permitir preview imediato; para stacks que exigem build, inclua todos os arquivos necessários para instalação e build. O ZIP deve ser utilizável fora do Andreo.`;
   const result = await invokeLLM({
     messages: [
       { role: "system", content: `${settings.systemPrompt}\n${settings.instructions}\nVocê é o gerador de artefatos web do Andreo. Gere arquivos reais, completos e executáveis.` },
@@ -433,8 +437,8 @@ async function startServer() {
         .map(file => ({ path: safeRelativePath(String(file.path || "arquivo.txt").replace(/^\/+/, ""), "arquivo.txt"), content: String(file.content || "") }))
         .filter(file => file.content.trim())
         .slice(0, 40);
-      if (!files.some(file => file.path.toLowerCase() === "index.html")) {
-        res.status(502).json({ error: "O gerador não entregou um index.html funcional." });
+      if (!files.length) {
+        res.status(502).json({ error: "O gerador não entregou arquivos para este site." });
         return;
       }
       const zipEntries = Object.fromEntries(files.map(file => [file.path, strToU8(file.content)]));
@@ -442,8 +446,9 @@ async function startServer() {
       const slug = safeFileName(String(definition.name || "andreo-site"), "andreo-site").toLowerCase();
       const stamp = Date.now();
       const zip = await storagePut(`sites/${stamp}-${slug}.zip`, zipBuffer, "application/zip");
-      const index = files.find(file => file.path.toLowerCase() === "index.html")!;
-      const preview = await storagePut(`sites/${stamp}-${slug}-preview.html`, index.content, "text/html; charset=utf-8");
+      const index = files.find(file => file.path.toLowerCase() === "index.html");
+      const previewContent = index?.content || `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(String(definition.name || "Projeto Andreo"))}</title><style>body{font-family:system-ui;background:#0b100d;color:#eaf2e8;max-width:760px;margin:10vh auto;padding:24px}code{color:#b7f34a}li{margin:8px 0}</style><h1>${escapeHtml(String(definition.name || "Projeto Andreo"))}</h1><p>Este projeto usa uma stack que precisa ser executada pelo próprio runtime. Baixe o ZIP para rodar o build completo.</p><h2>Arquivos entregues</h2><ul>${files.map(file => `<li><code>${escapeHtml(file.path)}</code></li>`).join("")}</ul>`;
+      const preview = await storagePut(`sites/${stamp}-${slug}-preview.html`, previewContent, "text/html; charset=utf-8");
       res.json({ name: definition.name || slug, description: usedFallback ? `${definition.description} O pedido foi preservado no conteúdo-base e você já pode baixar e testar.` : definition.description || "Site gerado pelo Andreo.", files: files.map(file => file.path), zipUrl: zip.url, previewUrl: preview.url, zipName: `${slug}.zip`, fallback: usedFallback });
     } catch (error) {
       console.error("[Chat] site creation failed", error);
