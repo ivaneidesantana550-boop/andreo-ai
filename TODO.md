@@ -41,3 +41,4 @@
 - [x] Enviar arquivos de texto/código para o contexto do modelo e encaminhar imagens/PDFs/mídia por URL assinada quando o modelo suportar leitura multimodal.
 - [x] Permitir solicitar uma imagem diretamente no composer e exibir o resultado com download.
 - [x] Permitir pedir um arquivo pelo briefing, gerar seu conteúdo com o Andreo, armazená-lo e entregar um link de download.
+- [x] Permitir respostas de até **1.000.000 de caracteres**, continuando automaticamente quando uma chamada do modelo atingir o limite técnico de tokens.

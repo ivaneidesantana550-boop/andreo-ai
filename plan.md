@@ -9,6 +9,7 @@ Construir um chat AI chamado **Andreo**, otimizado primeiro para celular, com co
 - **Frontend:** React + TypeScript + Tailwind, layout mobile-first com rail desktop opcional, área de conversa, composer fixo, cartões de ferramentas, Build Lab e painel admin.
 - **Backend:** Express com endpoints `/api/chat`, `/api/settings`, `/api/admin/login`, `/api/admin/settings` e `/api/admin/upload-asset`. O login admin gera um token HMAC de curta duração armazenado em `sessionStorage`; a senha fica somente no servidor.
 - **LLM:** reutilizar `invokeLLM` do starter, enviando system prompt + instruções persistidas + histórico recente.
+- **Saída longa:** respostas podem chegar a 1.000.000 de caracteres; se o modelo encerrar uma parte por limite de tokens, o servidor solicita continuações e concatena as partes antes de responder ao cliente.
 - **Persistência:** nova tabela singleton `appSettings` no Drizzle/MySQL com identidade, comportamento e URLs de assets configuráveis; imagens são enviadas para o storage durável.
 - **Rotas:** `/` para o chat e `/andreo-console` para o painel. O executor de projetos permanece interno ao fluxo de conversa e não é exposto como página ou aba.
 - **Recursos:** servidor e banco já habilitados; o chat usa a API LLM gerenciada do Manus sem chave externa.

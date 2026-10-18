@@ -24,6 +24,9 @@ Capacidades disponíveis no workspace: geração de código, revisão e refatora
 
 type ChatAttachmentInput = { key: string; name: string; mimeType: string; textContent?: string };
 type ChatMessageInput = { role: "user" | "assistant"; content: string; attachments?: ChatAttachmentInput[] };
+const MAX_RESPONSE_CHARS = 1_000_000;
+const MAX_COMPLETION_TOKENS_PER_PART = 16_000;
+const MAX_CONTINUATION_PARTS = 64;
 
 function adminTokenFromRequest(req: express.Request) {
   const header = req.header("authorization") || "";
@@ -77,16 +80,16 @@ function mimeForFile(name: string) {
 
 async function enrichMessages(input: ChatMessageInput[]): Promise<Message[]> {
   const result: Message[] = [];
-  for (const message of input.slice(-24)) {
+  for (const message of input) {
     if ((message.role !== "user" && message.role !== "assistant") || typeof message.content !== "string") continue;
     if (!message.attachments?.length || message.role !== "user") {
-      result.push({ role: message.role, content: message.content.slice(0, 12000) });
+      result.push({ role: message.role, content: message.content });
       continue;
     }
-    const parts: Array<Record<string, unknown>> = [{ type: "text", text: message.content.slice(0, 12000) }];
+    const parts: Array<Record<string, unknown>> = [{ type: "text", text: message.content }];
     for (const attachment of message.attachments.slice(0, 10)) {
       if (attachment.textContent) {
-        parts.push({ type: "text", text: `\n\n[Arquivo ${attachment.name}]\n${attachment.textContent.slice(0, 120000)}` });
+        parts.push({ type: "text", text: `\n\n[Arquivo ${attachment.name}]\n${attachment.textContent}` });
         continue;
       }
       if (!attachment.key) {
@@ -109,6 +112,28 @@ async function enrichMessages(input: ChatMessageInput[]): Promise<Message[]> {
     result.push({ role: "user", content: parts as Message["content"] });
   }
   return result;
+}
+
+async function generateLongCompletion(system: string, history: Message[]) {
+  let combined = "";
+  let conversation = history;
+  for (let part = 0; part < MAX_CONTINUATION_PARTS && combined.length < MAX_RESPONSE_CHARS; part += 1) {
+    const result = await invokeLLM({
+      messages: [{ role: "system", content: system }, ...conversation],
+      maxTokens: MAX_COMPLETION_TOKENS_PER_PART,
+    });
+    const piece = contentToText(result.choices?.[0]?.message?.content);
+    if (!piece) break;
+    combined += piece.slice(0, MAX_RESPONSE_CHARS - combined.length);
+    const finishReason = result.choices?.[0]?.finish_reason;
+    if (combined.length >= MAX_RESPONSE_CHARS || (finishReason !== "length" && finishReason !== "max_tokens")) break;
+    conversation = [
+      ...history,
+      { role: "assistant", content: combined.slice(-12_000) },
+      { role: "user", content: "Continue exatamente do último caractere da resposta anterior. Não repita nada, não resuma e não adicione explicações; entregue apenas a continuação completa." },
+    ];
+  }
+  return combined.slice(0, MAX_RESPONSE_CHARS);
 }
 
 async function startServer() {
@@ -267,11 +292,7 @@ async function startServer() {
 
       const settings = await getAppSettings();
       const system = `${settings.systemPrompt}\n\nInstruções operacionais:\n${settings.instructions}\n${CAPABILITY_CONTEXT}`;
-      const result = await invokeLLM({
-        messages: [{ role: "system", content: system }, ...history],
-        maxTokens: 1600,
-      });
-      const content = contentToText(result.choices?.[0]?.message?.content);
+      const content = await generateLongCompletion(system, history);
       if (!content) {
         res.status(502).json({ error: "O Andreo não retornou conteúdo. Tente novamente." });
         return;

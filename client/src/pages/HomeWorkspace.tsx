@@ -59,7 +59,7 @@ export default function HomeWorkspace() {
         const response = await fetch("/api/chat/upload", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: file.name, dataUrl }) });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || `Não foi possível enviar ${file.name}.`);
-        uploaded.push({ ...data, textContent: isTextLike(file) ? (await file.text()).slice(0, 120000) : undefined });
+        uploaded.push({ ...data, textContent: isTextLike(file) ? await file.text() : undefined });
       }
       setAttachedFiles(current => [...current, ...uploaded]);
     } catch (error) {
