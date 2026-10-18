@@ -311,7 +311,7 @@ async function startServer() {
       }
 
       const settings = await getAppSettings();
-      const system = `${settings.systemPrompt}\n\nInstruções operacionais:\n${settings.instructions}\n${CAPABILITY_CONTEXT}\n\nRegras permanentes: responda com profissionalismo e respeito, sem palavrões. Não incentive invasões, malware, keyloggers, roubo de dados ou outras ações ilícitas. Quando um pedido for inseguro, explique o risco e ofereça uma alternativa legítima.`;
+      const system = `Regras permanentes: responda com profissionalismo e respeito. Não incentive invasões, malware, keyloggers, roubo de dados ou outras ações ilícitas. Quando um pedido for inseguro, explique o risco e ofereça uma alternativa legítima.\n\n${CAPABILITY_CONTEXT}\n\nInstruções operacionais adicionais:\n${settings.instructions}\n\nSYSTEM PROMPT PERSONALIZADO DO ADMINISTRADOR — aplique este texto como a identidade, o estilo e o comportamento principal do Andreo:\n${settings.systemPrompt}`;
       const content = await generateLongCompletion(system, history);
       if (!content) {
         res.status(502).json({ error: "O Andreo não retornou conteúdo. Tente novamente." });
