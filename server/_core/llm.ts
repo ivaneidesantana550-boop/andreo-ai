@@ -223,7 +223,7 @@ const provider = () => {
     return {
       baseUrl: (process.env.XKIRO_API_BASE?.trim() || "https://api.xkiro.com/v1").replace(/\/$/, ""),
       apiKey: xKiroKey,
-      defaultModel: process.env.XKIRO_MODEL?.trim() || "qwen/qwen3-coder-plus:free",
+      defaultModel: process.env.XKIRO_MODEL?.trim() || "mistralai/mistral-large-4-0",
     };
   }
   return { baseUrl: `${platformApiBase()}/v1`, apiKey: ENV.forgeApiKey, defaultModel: undefined };
