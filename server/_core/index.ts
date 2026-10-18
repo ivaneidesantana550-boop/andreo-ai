@@ -313,6 +313,11 @@ async function startServer() {
       res.json({ content });
     } catch (error) {
       console.error("[Chat] request failed", error);
+      const detail = error instanceof Error ? error.message : String(error);
+      if (/\b412\b|usage exhausted|usage_exhausted/i.test(detail)) {
+        res.status(503).json({ error: "O serviço de IA atingiu o limite de uso disponível para esta conta. Isso não é uma falha de conexão; é necessário liberar o acesso ao modelo ou conectar um provedor de IA com cota disponível." });
+        return;
+      }
       res.status(500).json({ error: "Não consegui responder agora. Verifique a conexão e tente novamente." });
     }
   });

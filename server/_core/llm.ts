@@ -272,6 +272,7 @@ const normalizeResponseFormat = ({
 const RETRY_MAX_RETRIES = 4;
 const RETRY_BASE_DELAY_MS = 500;
 const RETRY_MAX_DELAY_MS = 30_000;
+const NON_RETRYABLE_STATUS_CODES = new Set([400, 401, 403, 404, 412, 422]);
 
 type FetchInit = NonNullable<Parameters<typeof fetch>[1]>;
 
@@ -309,7 +310,7 @@ const fetchWithBackoff = async (
   for (let attempt = 0; attempt <= RETRY_MAX_RETRIES; attempt++) {
     try {
       const response = await fetch(url, init);
-      if (response.ok || attempt === RETRY_MAX_RETRIES) {
+      if (response.ok || attempt === RETRY_MAX_RETRIES || NON_RETRYABLE_STATUS_CODES.has(response.status)) {
         return response;
       }
 
