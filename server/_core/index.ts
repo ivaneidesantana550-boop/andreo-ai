@@ -125,7 +125,6 @@ async function startServer() {
       routes: [
         { path: "/", title: "Andreo AI" },
         { path: "/andreo-console", title: "Andreo Console" },
-        { path: "/build-lab", title: "Andreo Build Lab" },
       ],
     });
   });

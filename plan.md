@@ -2,7 +2,7 @@
 
 ## Escopo
 
-Construir um chat AI chamado **Andreo**, otimizado primeiro para celular, com conversa em português, respostas em Markdown, chips de ferramentas de programação e web, um Build Lab para organizar entregas APK/EXE/ZIP/site e um painel administrativo oculto em uma URL dedicada, protegido pela senha `251831`. O painel deve alterar nome, nome exibido, imagem do ícone, imagem do fundo, system prompt e instruções, persistindo os valores no banco e aplicando-os ao chat.
+Construir um chat AI chamado **Andreo**, otimizado primeiro para celular, com conversa em português, respostas em Markdown, chips de ferramentas de programação e web e um ambiente de projeto integrado ao próprio chat para organizar arquivos, preview, build e entrega de sites/APK/EXE/ZIP. O painel administrativo fica em uma URL dedicada, protegido pela senha `251831`, e altera nome, nome exibido, imagem do ícone, imagem do fundo, system prompt e instruções.
 
 ## Implementação
 
@@ -10,14 +10,14 @@ Construir um chat AI chamado **Andreo**, otimizado primeiro para celular, com co
 - **Backend:** Express com endpoints `/api/chat`, `/api/settings`, `/api/admin/login`, `/api/admin/settings` e `/api/admin/upload-asset`. O login admin gera um token HMAC de curta duração armazenado em `sessionStorage`; a senha fica somente no servidor.
 - **LLM:** reutilizar `invokeLLM` do starter, enviando system prompt + instruções persistidas + histórico recente.
 - **Persistência:** nova tabela singleton `appSettings` no Drizzle/MySQL com identidade, comportamento e URLs de assets configuráveis; imagens são enviadas para o storage durável.
-- **Rotas:** `/` para o chat, `/andreo-console` para o painel e `/build-lab` para entregas. `public/manus-routes.json` declara as três.
+- **Rotas:** `/` para o chat e `/andreo-console` para o painel. O ambiente de projeto aparece como dock integrado dentro de `/`.
 - **Recursos:** servidor e banco já habilitados; o chat usa a API LLM gerenciada do Manus sem chave externa.
 
 ## Estrutura
 
 - `client/src/pages/Home.tsx`: experiência do chat.
 - `client/src/pages/AdminPanel.tsx`: autenticação, edição de configuração e upload visual.
-- `client/src/pages/BuildLab.tsx`: especificação e organização de pipelines de entrega.
+- `client/src/pages/HomeWorkspace.tsx`: chat multimodal e ambiente integrado de projeto.
 - `client/src/index.css`: tokens visuais, responsividade e superfícies.
 - `server/_core/index.ts`: endpoints HTTP e montagem do servidor.
 - `server/settings.ts`: leitura/escrita da configuração e autenticação admin.

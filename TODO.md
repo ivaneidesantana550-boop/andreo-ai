@@ -29,9 +29,10 @@
 
 ## Build Lab e entregas
 
-- [x] Criar um ambiente separado para especificar entregas Android APK, Windows EXE, pacotes ZIP e sites.
-- [x] Permitir registrar pipelines com nome, tipo de saída e briefing do projeto.
-- [x] Mostrar o fluxo de especificação, build e entrega, incluindo o caminho de URL para sites.
+- [x] Criar um ambiente de projeto integrado ao chat, sem exigir uma página separada.
+- [x] Abrir automaticamente o ambiente quando a pessoa pedir para criar um site, app, sistema, APK, EXE ou projeto.
+- [x] Mostrar dentro do chat as abas de arquivos, preview, build e entrega, com briefing e arquivos iniciais do projeto.
+- [x] Permitir registrar arquivos iniciais e iniciar o build a partir do ambiente integrado.
 - [ ] Conectar runners nativos de compilação para produzir binários APK/EXE e publicar sites automaticamente em produção.
 
 ## Chat multimodal e entregáveis
