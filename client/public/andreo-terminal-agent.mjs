@@ -1,8 +1,6 @@
 #!/usr/bin/env node
 import readline from "node:readline";
-import { exec } from "node:child_process";
-import { promisify } from "node:util";
-const execAsync = promisify(exec);
+import { spawn } from "node:child_process";
 const base = process.argv[2] || "https://andreo-nfiygksy.manus.space";
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 const ask = question => new Promise(resolve => rl.question(question, resolve));
@@ -24,12 +22,16 @@ while (true) {
     busy = true;
     console.log(`\\nExecutando comando autorizado pelo usuário: ${data.command.command}`);
     try {
-      const result = await execAsync(data.command.command, { shell: true, timeout: 120000, maxBuffer: 10 * 1024 * 1024 });
-      await fetch(`${base}/api/terminal/agent/result`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ agentToken, commandId: data.command.id, status: "done", output: `${result.stdout || ""}${result.stderr || ""}` }) });
-      console.log(result.stdout || result.stderr || "Comando concluído sem saída.");
+      const child = spawn(data.command.command, { shell: true, stdio: ["ignore", "pipe", "pipe"] });
+      const sendLog = chunk => { const text = String(chunk); process.stdout.write(text); void fetch(`${base}/api/terminal/agent/log`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ agentToken, commandId: data.command.id, chunk: text }) }); };
+      child.stdout.on("data", sendLog); child.stderr.on("data", sendLog);
+      const timer = setTimeout(() => child.kill("SIGTERM"), 120000);
+      const exitCode = await new Promise(resolve => child.on("close", resolve));
+      clearTimeout(timer);
+      await fetch(`${base}/api/terminal/agent/result`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ agentToken, commandId: data.command.id, status: exitCode === 0 ? "done" : "error", error: exitCode === 0 ? "" : `Processo finalizado com código ${exitCode}` }) });
     } catch (error) {
-      await fetch(`${base}/api/terminal/agent/result`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ agentToken, commandId: data.command.id, status: "error", output: error.stdout || "", error: error.message }) });
-      console.error(error.message);
+      await fetch(`${base}/api/terminal/agent/result`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ agentToken, commandId: data.command.id, status: "error", error: error instanceof Error ? error.message : String(error) }) });
+      console.error(error);
     } finally { busy = false; }
   } catch (error) { console.error("Conexão perdida; tentando novamente...", error.message); await new Promise(r => setTimeout(r, 3000)); }
 }

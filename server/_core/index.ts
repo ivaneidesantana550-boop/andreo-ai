@@ -243,6 +243,15 @@ async function startServer() {
     command.status = req.body?.status === "done" ? "done" : "error"; command.output = String(req.body?.output || "").slice(0, 100000); command.error = String(req.body?.error || "").slice(0, 4000);
     res.json({ ok: true });
   });
+  app.post("/api/terminal/agent/log", (req, res) => {
+    const connection = terminalByAgent(req);
+    const command = connection?.commands.find(item => item.id === req.body?.commandId);
+    if (!connection || !command) { res.status(404).json({ error: "Comando não encontrado." }); return; }
+    const chunk = String(req.body?.chunk || "");
+    command.output = `${command.output || ""}${chunk}`.slice(-100000);
+    if (command.status === "queued") command.status = "running";
+    res.json({ ok: true });
+  });
   app.get("/api/platform/config.js", (_req, res) => {
     res.set("Cache-Control", "no-store").type("application/javascript").send(publicPlatformScript());
   });

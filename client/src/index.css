@@ -105,6 +105,11 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .terminal-command-card { display: grid; gap: 9px; margin-top: 12px; padding: 11px; border: 1px solid rgba(183,243,74,.32); border-radius: 8px; background: rgba(183,243,74,.06); }
 .terminal-command-card code { overflow-wrap: anywhere; color: var(--andreo-lime); font: 11px/1.5 var(--andreo-mono); white-space: pre-wrap; }
 .terminal-command-card button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: fit-content; padding: 8px 10px; border: 0; border-radius: 7px; color: #14200e; background: var(--andreo-lime); font-size: 11px; font-weight: 700; }
+.terminal-live-card { display: grid; gap: 8px; margin-top: 10px; padding: 10px; border-left: 2px solid var(--andreo-lime); background: rgba(0,0,0,.18); color: var(--andreo-muted); font: 10px var(--andreo-mono); }
+.terminal-live-card > div { display: flex; align-items: center; gap: 6px; color: var(--andreo-lime); letter-spacing: .05em; }
+.terminal-live-card pre { max-height: 280px; overflow: auto; margin: 0; color: #d7e4d1; white-space: pre-wrap; font: 11px/1.45 var(--andreo-mono); }
+.thinking-bubble { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
+.thinking-bubble small { flex-basis: 100%; margin-top: 5px; color: var(--andreo-muted); font: 11px var(--andreo-mono); }
 .topbar { height: 68px; justify-content: space-between; padding: 0 33px; border-bottom: 1px solid var(--andreo-border); background: rgba(8,12,10,.3); }
 .topbar-left, .topbar-right { gap: 16px; }
 .breadcrumb { display: flex; align-items: center; gap: 9px; color: var(--andreo-dim); font-family: var(--andreo-mono); font-size: 10px; letter-spacing: .05em; }
