@@ -20,9 +20,10 @@ import {
 import { storageGetSignedUrl, storagePut } from "../storage";
 import { generateImage } from "./imageGeneration";
 import { getConversationMessages, listConversations, saveConversationTurn } from "../db";
+import { needsWebResearch, researchContext, researchWeb } from "./webResearch";
 
 const CAPABILITY_CONTEXT = `
-Capacidades disponíveis no workspace: geração de código, revisão e refatoração, debugging, explicação de APIs, criação de componentes, pesquisa na web, abertura e leitura de URLs, síntese de páginas, comparação de fontes e planejamento técnico. Seja honesto quando uma ação externa não estiver disponível diretamente e ofereça o próximo passo mais útil.
+Capacidades disponíveis no workspace: geração de código, revisão e refatoração, debugging, explicação e integração de APIs, criação de componentes, pesquisa na web, abertura e leitura de URLs, síntese de páginas, comparação de fontes e planejamento técnico. Para pedidos sobre APIs, bibliotecas, frameworks, SDKs, versões ou erros atuais, consulte documentação oficial, changelogs e issues relevantes antes de propor a solução. Quando houver terminal conectado, use-o para instalar dependências, consultar versões, criar arquivos e executar testes depois da confirmação do usuário. Seja honesto quando uma ação externa não estiver disponível diretamente e ofereça o próximo passo mais útil.
 `;
 
 type ChatAttachmentInput = { key: string; name: string; mimeType: string; textContent?: string };
@@ -458,9 +459,11 @@ async function startServer() {
       }
 
       const settings = await getAppSettings();
+      const webResearch = needsWebResearch(lastUserText) ? await researchWeb(lastUserText) : null;
       const terminalConnected = Boolean(terminalByBrowser(req)?.status === "connected");
       const terminalInstruction = terminalConnected ? "\n\nTERMINAL LOCAL CONECTADO: quando o usuário pedir para executar, instalar, analisar ou usar uma ferramenta no terminal, explique brevemente e inclua exatamente um comando shell dentro de <terminal_command>comando aqui</terminal_command>. Nunca diga que executou antes de receber o resultado. O usuário verá o comando e confirmará antes do envio. Para testes de segurança, só ajude quando o alvo for autorizado pelo usuário.\n" : "";
-      const system = `Regras permanentes: responda com profissionalismo e respeito. Não incentive invasões, malware, keyloggers, roubo de dados ou outras ações ilícitas. Quando um pedido for inseguro, explique o risco e ofereça uma alternativa legítima.\n\n${CAPABILITY_CONTEXT}\n${terminalInstruction}\nInstruções operacionais adicionais:\n${settings.instructions}\n\nSYSTEM PROMPT PERSONALIZADO DO ADMINISTRADOR — aplique este texto como a identidade, o estilo e o comportamento principal do Andreo:\n${settings.systemPrompt}`;
+      const researchInstruction = webResearch ? `\n\n${researchContext(webResearch)}\n\nINSTRUÇÃO DE PESQUISA PROFUNDA: esta pergunta exige apuração. Construa uma linha do tempo ou uma explicação causal quando isso ajudar. Compare pelo menos duas fontes independentes, priorize fonte primária e documentação oficial, separe fatos confirmados de alegações, registre datas e versões e deixe claro quando as fontes não forem suficientes. Para APIs e código, extraia os endpoints, autenticação, parâmetros, limites, exemplos compatíveis e mudanças de versão relevantes. Cite os links consultados ao lado das afirmações. Nunca finja que pesquisou uma página que não foi aberta.` : "";
+      const system = `Regras permanentes: responda com profissionalismo e respeito. Não incentive invasões, malware, keyloggers, roubo de dados ou outras ações ilícitas. Quando um pedido for inseguro, explique o risco e ofereça uma alternativa legítima.\n\n${CAPABILITY_CONTEXT}\n${terminalInstruction}${researchInstruction}\nInstruções operacionais adicionais:\n${settings.instructions}\n\nSYSTEM PROMPT PERSONALIZADO DO ADMINISTRADOR — aplique este texto como a identidade, o estilo e o comportamento principal do Andreo:\n${settings.systemPrompt}`;
       const rawContent = await generateLongCompletion(system, history);
       const terminalCommand = terminalConnected ? extractTerminalCommand(rawContent) : "";
       const content = rawContent.replace(/<terminal_command>[\s\S]*?<\/terminal_command>/gi, "").trim();
@@ -479,7 +482,7 @@ async function startServer() {
           console.error("[Conversations] save failed", saveError);
         }
       }
-      res.json({ content, terminalCommand: terminalCommand || null, terminalConnected, conversationId: savedConversationId ?? conversationId ?? null });
+      res.json({ content, terminalCommand: terminalCommand || null, terminalConnected, researchPerformed: Boolean(webResearch), researchSources: webResearch?.sources.map(source => ({ title: source.title, url: source.url })) || [], conversationId: savedConversationId ?? conversationId ?? null });
     } catch (error) {
       console.error("[Chat] request failed", error);
       const detail = error instanceof Error ? error.message : String(error);
