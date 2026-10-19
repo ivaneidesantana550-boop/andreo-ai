@@ -40,9 +40,36 @@ export type GenerateImageResponse = {
   url?: string;
 };
 
+async function generateImageWithXkiro(options: GenerateImageOptions, apiKey: string): Promise<GenerateImageResponse> {
+  const baseUrl = (process.env.XKIRO_API_BASE?.trim() || "https://api.xkiro.com/v1").replace(/\/$/, "");
+  const model = options.model || process.env.XKIRO_IMAGE_MODEL?.trim() || "sensenova/sensenova-u1.5-lite";
+  const createResponse = await fetch(`${baseUrl}/images/generations`, {
+    method: "POST",
+    headers: { accept: "application/json", "content-type": "application/json", authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({ model, prompt: options.prompt, n: 1, size: "1024x1024" }),
+  });
+  const created = await createResponse.json().catch(() => ({})) as { id?: string; error?: { message?: string } | string };
+  if (!createResponse.ok || !created.id) throw new Error(`Xkiro image request failed (${createResponse.status}): ${typeof created.error === "string" ? created.error : created.error?.message || "job was not created"}`);
+
+  const deadline = Date.now() + 5 * 60_000;
+  let waitMs = 2_000;
+  while (Date.now() < deadline) {
+    await new Promise(resolve => setTimeout(resolve, waitMs));
+    waitMs = Math.min(Math.round(waitMs * 1.5), 10_000);
+    const statusResponse = await fetch(`${baseUrl}/images/generations/${encodeURIComponent(created.id)}`, { headers: { accept: "application/json", authorization: `Bearer ${apiKey}` } });
+    const job = await statusResponse.json().catch(() => ({})) as { status?: string; data?: Array<{ url?: string }>; error?: { message?: string } | string };
+    if (job.status === "succeeded" && job.data?.[0]?.url) return { url: job.data[0].url };
+    if (job.status === "failed" || job.status === "blocked") throw new Error(`Xkiro image job ${job.status}: ${typeof job.error === "string" ? job.error : job.error?.message || "generation failed"}`);
+  }
+  throw new Error("Xkiro image generation timed out");
+}
+
 export async function generateImage(
   options: GenerateImageOptions
 ): Promise<GenerateImageResponse> {
+  const xKiroKey = (process.env.XKIRO_IMAGE_API_KEY || process.env.XKIRO_API_KEY || "").trim();
+  if (xKiroKey) return generateImageWithXkiro(options, xKiroKey);
+
   if (!ENV.forgeApiUrl) {
     throw new Error("MANUS_API_URL is not configured");
   }
