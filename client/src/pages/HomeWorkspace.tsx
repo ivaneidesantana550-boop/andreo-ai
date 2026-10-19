@@ -81,7 +81,7 @@ export default function HomeWorkspace() {
   useEffect(() => {
     if (!terminalToken) return;
     const checkTerminal = async () => {
-      const response = await fetch(`/api/terminal/pair/status?token=${terminalToken}`);
+      const response = await fetch(`/api/terminal/pair/status?token=${terminalToken}`, { cache: "no-store" });
       if (!response.ok) { localStorage.removeItem("andreo-terminal-browser-token"); setTerminalToken(""); setTerminalConnected(false); return; }
       const data = await response.json(); setTerminalConnected(data.status === "connected");
     };
@@ -171,7 +171,7 @@ export default function HomeWorkspace() {
     if (!response.ok) { setMessages(current => current.map(item => item.id === message.id ? { ...item, content: `${item.content}\n\nNão consegui enviar ao terminal: ${data.error || "terminal indisponível"}` } : item)); return; }
     setMessages(current => current.map(item => item.id === message.id ? { ...item, terminalCommand: undefined, terminalCommandId: data.command.id, terminalStatus: "queued", content: `${item.content}\n\nComando enviado para o terminal após sua confirmação:\n\n\`${value}\`` } : item));
     const timer = window.setInterval(async () => {
-      const statusResponse = await fetch(`/api/terminal/commands?token=${terminalToken}`);
+      const statusResponse = await fetch(`/api/terminal/commands?token=${terminalToken}`, { cache: "no-store" });
       if (!statusResponse.ok) return;
       const statusData = await statusResponse.json();
       const currentCommand = statusData.commands?.find((item: { id: string }) => item.id === data.command.id);

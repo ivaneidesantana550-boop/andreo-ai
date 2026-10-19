@@ -32,7 +32,7 @@ const MAX_COMPLETION_TOKENS_PER_PART = 16_000;
 const MAX_CONTINUATION_PARTS = 64;
 
 type TerminalCommand = { id: string; command: string; status: "queued" | "running" | "done" | "error" | "cancelled"; output?: string; error?: string; createdAt: number };
-type TerminalConnection = { browserToken: string; joinToken: string; agentToken?: string; code: string; name: string; status: "waiting" | "connected"; commands: TerminalCommand[]; createdAt: number };
+type TerminalConnection = { browserToken: string; joinToken: string; agentToken?: string; code: string; name: string; status: "waiting" | "connected"; commands: TerminalCommand[]; waiters: Array<() => void>; createdAt: number };
 const terminalConnections = new Map<string, TerminalConnection>();
 function token() { return crypto.randomBytes(24).toString("hex"); }
 function terminalByBrowser(req: express.Request) { return terminalConnections.get(typeof req.query.token === "string" ? req.query.token : typeof req.body?.token === "string" ? req.body.token : ""); }
@@ -191,13 +191,14 @@ async function startServer() {
   app.post("/api/terminal/pair/start", (req, res) => {
     const browserToken = token();
     const joinToken = token();
-    const connection: TerminalConnection = { browserToken, joinToken, code: String(Math.floor(100000 + Math.random() * 900000)), name: "Terminal local", status: "waiting", commands: [], createdAt: Date.now() };
+    const connection: TerminalConnection = { browserToken, joinToken, code: String(Math.floor(100000 + Math.random() * 900000)), name: "Terminal local", status: "waiting", commands: [], waiters: [], createdAt: Date.now() };
     terminalConnections.set(browserToken, connection);
     const origin = req.get("origin") || "https://andreo-nfiygksy.manus.space";
     const agentUrl = `${origin}/andreo-terminal-agent.mjs`;
     res.json({ browserToken, code: connection.code, expiresInSeconds: 600, agentCommand: `curl -fsSL ${agentUrl} -o "$HOME/andreo-terminal-agent.mjs" && node "$HOME/andreo-terminal-agent.mjs" ${origin} --token ${joinToken}`, windowsCommand: `Invoke-WebRequest -Uri "${agentUrl}" -OutFile "$env:TEMP\\andreo-terminal-agent.mjs"; node "$env:TEMP\\andreo-terminal-agent.mjs" ${origin} --token ${joinToken}` });
   });
   app.get("/api/terminal/pair/status", (req, res) => {
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate");
     const connection = terminalByBrowser(req);
     if (!connection || Date.now() - connection.createdAt > 600000) { res.status(404).json({ error: "Pareamento expirado." }); return; }
     res.json({ status: connection.status, name: connection.name });
@@ -222,19 +223,22 @@ async function startServer() {
     if (!connection || connection.status !== "connected") { res.status(409).json({ error: "Conecte um terminal primeiro." }); return; }
     if (!command || command.length > 12000) { res.status(400).json({ error: "Comando inválido ou longo demais." }); return; }
     const item: TerminalCommand = { id: token(), command, status: "queued", createdAt: Date.now() };
-    connection.commands.push(item); res.json({ command: item });
+    connection.commands.push(item); connection.waiters.splice(0).forEach(resolve => resolve()); res.set("Cache-Control", "no-store").json({ command: item });
   });
   app.get("/api/terminal/commands", (req, res) => {
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate");
     const connection = terminalByBrowser(req);
     if (!connection) { res.status(404).json({ error: "Terminal não encontrado." }); return; }
     res.json({ commands: connection.commands.slice(-20) });
   });
-  app.get("/api/terminal/agent/next", (req, res) => {
+  app.get("/api/terminal/agent/next", async (req, res) => {
     const connection = terminalByAgent(req);
     if (!connection) { res.status(401).json({ error: "Agente não autorizado." }); return; }
-    const command = connection.commands.find(item => item.status === "queued");
+    let command = connection.commands.find(item => item.status === "queued");
+    if (!command) await new Promise<void>(resolve => { const timer = setTimeout(() => { const index = connection.waiters.indexOf(resolve); if (index >= 0) connection.waiters.splice(index, 1); resolve(); }, 15000); connection.waiters.push(() => { clearTimeout(timer); resolve(); }); });
+    command = connection.commands.find(item => item.status === "queued");
     if (command) command.status = "running";
-    res.json({ command: command || null });
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate").json({ command: command || null });
   });
   app.post("/api/terminal/agent/result", (req, res) => {
     const connection = terminalByAgent(req);

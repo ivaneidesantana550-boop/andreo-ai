@@ -16,7 +16,7 @@ rl.close();
 let busy = false;
 while (true) {
   try {
-    const response = await fetch(`${base}/api/terminal/agent/next?agentToken=${encodeURIComponent(agentToken)}`);
+    const response = await fetch(`${base}/api/terminal/agent/next?agentToken=${encodeURIComponent(agentToken)}`, { cache: "no-store" });
     const data = await response.json();
     if (!data.command || busy) { await new Promise(r => setTimeout(r, 250)); continue; }
     busy = true;
