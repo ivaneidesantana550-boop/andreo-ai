@@ -42,7 +42,7 @@ export type GenerateImageResponse = {
 
 async function generateImageWithXkiro(options: GenerateImageOptions, apiKey: string): Promise<GenerateImageResponse> {
   const baseUrl = (process.env.XKIRO_API_BASE?.trim() || "https://api.xkiro.com/v1").replace(/\/$/, "");
-  const model = options.model || process.env.XKIRO_IMAGE_MODEL?.trim() || "openai/gpt-image-2.5";
+  const model = options.model || process.env.XKIRO_IMAGE_MODEL?.trim() || "sensenova/sensenova-u1.5-lite";
   const createResponse = await fetch(`${baseUrl}/images/generations`, {
     method: "POST",
     headers: { accept: "application/json", "content-type": "application/json", authorization: `Bearer ${apiKey}` },
