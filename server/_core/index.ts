@@ -37,6 +37,10 @@ const terminalConnections = new Map<string, TerminalConnection>();
 function token() { return crypto.randomBytes(24).toString("hex"); }
 function terminalByBrowser(req: express.Request) { return terminalConnections.get(typeof req.query.token === "string" ? req.query.token : typeof req.body?.token === "string" ? req.body.token : ""); }
 function terminalByAgent(req: express.Request) { const agentToken = typeof req.query.agentToken === "string" ? req.query.agentToken : typeof req.body?.agentToken === "string" ? req.body.agentToken : ""; return [...terminalConnections.values()].find(item => item.agentToken === agentToken); }
+function isImageRequest(text: string) {
+  return /\b(crie|criar|gere|gerar|faça|faca|fazer|desenhe|desenhar|produza|produzir)\b[\s\S]{0,80}\b(imagem|foto|ilustra[çc][ãa]o|arte|poster|logotipo|logo|ícone|icone|paisagem|retrato|avatar)\b/i.test(text)
+    || /\b(imagem|foto|ilustra[çc][ãa]o|arte)\b[\s\S]{0,40}\b(de|do|da|com)\b/i.test(text);
+}
 function adminTokenFromRequest(req: express.Request) {
   const header = req.header("authorization") || "";
   return header.startsWith("Bearer ") ? header.slice(7) : "";
@@ -426,6 +430,30 @@ async function startServer() {
 
       if (!history.length || history[history.length - 1].role !== "user") {
         res.status(400).json({ error: "Envie uma mensagem para começar." });
+        return;
+      }
+
+      const lastUserText = contentToText(history[history.length - 1].content).trim();
+      if (isImageRequest(lastUserText)) {
+        let image;
+        try {
+          image = await generateImage({ prompt: lastUserText.slice(0, 4000), quality: "medium" });
+        } catch (imageError) {
+          const detail = imageError instanceof Error ? imageError.message : String(imageError);
+          if (/usage exhausted|failed_precondition|quota/i.test(detail)) {
+            res.status(503).json({ error: "O gerador de imagens atingiu a cota disponível da conta. O pedido pelo chat está correto, mas é preciso liberar a cota visual para gerar a imagem." });
+            return;
+          }
+          throw imageError;
+        }
+        if (!image.url) { res.status(502).json({ error: "O gerador visual não retornou uma imagem." }); return; }
+        const visitorId = visitorIdFromRequest(req);
+        const conversationId = Number.isInteger(Number(req.body?.conversationId)) ? Number(req.body.conversationId) : undefined;
+        let savedConversationId: number | null = null;
+        if (visitorId) {
+          try { savedConversationId = await saveConversationTurn(visitorId, conversationId, lastUserText, "Imagem criada a partir do seu pedido."); } catch (saveError) { console.error("[Conversations] image save failed", saveError); }
+        }
+        res.json({ content: "Imagem criada a partir do seu pedido.", imageUrl: image.url, conversationId: savedConversationId ?? conversationId ?? null });
         return;
       }
 
