@@ -156,7 +156,8 @@ export default function HomeWorkspace() {
     const response = await fetch("/api/terminal/command", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token: terminalToken, command: value }) });
     const data = await response.json();
     if (!response.ok) { setMessages(current => current.map(item => item.id === message.id ? { ...item, content: `${item.content}\n\nNão consegui enviar ao terminal: ${data.error || "terminal indisponível"}` } : item)); return; }
-    setMessages(current => current.map(item => item.id === message.id ? { ...item, terminalCommand: undefined, terminalCommandId: data.command.id, terminalStatus: "queued", content: `${item.content}\n\nComando enviado para o terminal após sua confirmação:\n\n\`${value}\`` } : item));
+    setMessages(current => current.map(item => item.id === message.id ? { ...item, terminalCommand: undefined, terminalCommandId: data.command.id, terminalStatus: "dispatching", content: `${item.content}\n\nComando enviado para o terminal após sua confirmação:\n\n\`${value}\`` } : item));
+    let polls = 0;
     const timer = window.setInterval(async () => {
       const statusResponse = await fetch(`/api/terminal/commands?token=${terminalToken}`, { cache: "no-store" });
       if (!statusResponse.ok) return;
@@ -164,8 +165,23 @@ export default function HomeWorkspace() {
       const currentCommand = statusData.commands?.find((item: { id: string }) => item.id === data.command.id);
       if (!currentCommand) return;
       setMessages(current => current.map(item => item.id === message.id ? { ...item, terminalStatus: currentCommand.status, terminalOutput: currentCommand.output || currentCommand.error || (currentCommand.status === "done" ? "Comando concluído sem saída." : "") } : item));
+      polls += 1;
       if (["done", "error", "cancelled"].includes(currentCommand.status)) window.clearInterval(timer);
-    }, 1000);
+      else if (polls >= 20) { window.clearInterval(timer); void watchTerminalCommand(message.id, data.command.id, terminalToken); }
+    }, 100);
+  };
+
+  const watchTerminalCommand = async (messageId: string, commandId: string, tokenValue: string) => {
+    for (let attempt = 0; attempt < 120; attempt += 1) {
+      await new Promise(resolve => window.setTimeout(resolve, 500));
+      const response = await fetch(`/api/terminal/commands?token=${tokenValue}`, { cache: "no-store" });
+      if (!response.ok) return;
+      const data = await response.json();
+      const command = data.commands?.find((item: { id: string }) => item.id === commandId);
+      if (!command) continue;
+      setMessages(current => current.map(item => item.id === messageId ? { ...item, terminalStatus: command.status, terminalOutput: command.output || command.error || (command.status === "done" ? "Comando concluído sem saída." : "") } : item));
+      if (["done", "error", "cancelled"].includes(command.status)) return;
+    }
   };
 
   const appStyle = { background: settings.background, ...(settings.backgroundImageUrl ? { backgroundImage: `linear-gradient(rgba(7, 12, 9, .64), rgba(7, 12, 9, .72)), url("${settings.backgroundImageUrl}")`, backgroundSize: "100vw auto", backgroundRepeat: "no-repeat", backgroundPosition: "center top", backgroundAttachment: "fixed", backgroundColor: "#0b0f0d" } : {}) };
