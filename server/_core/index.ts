@@ -490,6 +490,14 @@ async function startServer() {
         res.status(503).json({ error: "O serviço de IA atingiu o limite de uso disponível para esta conta. Isso não é uma falha de conexão; é necessário liberar o acesso ao modelo ou conectar um provedor de IA com cota disponível." });
         return;
       }
+      if (/\b403\b|paid model|permission_denied/i.test(detail)) {
+        res.status(503).json({ error: "O modelo de texto configurado não está liberado no plano atual da Xkiro. O Andreo foi configurado para usar um modelo gratuito de programação; atualize a publicação e tente novamente." });
+        return;
+      }
+      if (/\b401\b|invalid.?api.?key|unauthorized/i.test(detail)) {
+        res.status(503).json({ error: "A chave da Xkiro foi recusada ou expirou. Verifique a API key configurada no projeto." });
+        return;
+      }
       res.status(500).json({ error: "Não consegui responder agora. Verifique a conexão e tente novamente." });
     }
   });
