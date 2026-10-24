@@ -225,7 +225,7 @@ const provider = () => {
       apiKey: xKiroKey,
       // O plano gratuito da Xkiro bloqueia modelos pagos. Este modelo gratuito
       // mantém boa capacidade de programação e aceita system prompts.
-      defaultModel: process.env.XKIRO_MODEL?.trim() || "qwen/qwen3-coder-plus:free",
+      defaultModel: process.env.XKIRO_MODEL?.trim() || "mistralai/ministral-14b",
     };
   }
   return { baseUrl: `${platformApiBase()}/v1`, apiKey: ENV.forgeApiKey, defaultModel: undefined };
